@@ -1,0 +1,301 @@
+{
+  "common": {
+    "save": "Kaydet",
+    "cancel": "İptal",
+    "delete": "Sil",
+    "back": "Geri",
+    "continue": "Devam Et",
+    "skip": "Atla",
+    "start": "Başla",
+    "next": "İleri",
+    "previous": "Önceki",
+    "done": "Tamam",
+    "loading": "Yükleniyor...",
+    "error": "Hata",
+    "success": "Başarılı",
+    "warning": "Uyarı",
+    "info": "Bilgi",
+    "yes": "Evet",
+    "no": "Hayır",
+    "ok": "Tamam",
+    "confirm": "Onayla",
+    "selectFile": "Dosya Seç",
+    "close": "Kapat",
+    "edit": "Düzenle",
+    "add": "Ekle",
+    "remove": "Kaldır",
+    "search": "Ara",
+    "filter": "Filtrele",
+    "sort": "Sırala",
+    "refresh": "Yenile",
+    "retry": "Tekrar Dene",
+    "today": "Bugün",
+    "yesterday": "Dün",
+    "tomorrow": "Yarın"
+  },
+  "onboarding": {
+    "welcome": {
+      "title": "Döngünü kolayca takip et",
+      "description": "Regl günlerini, ruh halini ve enerjini kaydet."
+    },
+    "reminders": {
+      "title": "Kendine küçük hatırlatmalar",
+      "description": "Çikolata zamanı mı? Su içme vakti mi? Senin yanındayım."
+    },
+    "privacy": {
+      "title": "Verilerin sende",
+      "description": "Tüm bilgiler cihazında güvende, kimseyle paylaşılmıyor."
+    }
+  },
+  "setup": {
+    "lastPeriod": {
+      "title": "Son adet başlangıcını seç 🌸",
+      "description": "Döngünü hesaplayabilmem için son adetinin başladığı günü seç.",
+      "selectDate": "Tarih seç"
+    },
+    "periodLength": {
+      "title": "Adet süreni seç ⏳",
+      "description": "Genellikle adet günlerin kaç gün sürüyor? (Ortalama: 5 gün)",
+      "selected": "Seçilen: {{days}} gün"
+    },
+    "cycleLength": {
+      "title": "Döngü süreni seç 🔄",
+      "description": "Genellikle döngün kaç gün sürüyor? (Ortalama: 28 gün)",
+      "selected": "Seçilen: {{days}} gün"
+    }
+  },
+  "calendar": {
+    "title": "Merhaba 🌸",
+    "subtitle": "Bugün nasılsın?",
+    "phaseInfoTitle": "Döngü Fazı Bilgisi",
+    "phase": {
+      "moreInfo": "Detaylı bilgi için tıkla →",
+      "labels": {
+        "duration": "Süre:",
+        "description": "Açıklama:",
+        "hormones": "Hormon Bilgisi:",
+        "commonSymptoms": "Yaygın Semptomlar:",
+        "tips": "Öneriler:"
+      }
+    },
+    "legend": {
+      "menstrual": "🌸 Adet",
+      "predicted": "🌷 Tahmini",
+      "fertile": "🌱 Fertil",
+      "ovulation": "💜 Ovulasyon",
+      "today": "🌟 Bugün"
+    },
+    "actions": {
+      "startPeriod": "Adet Başlat",
+      "endPeriod": "Adet Bitti",
+      "logDaily": "Günlük Kaydet"
+    },
+    "weekdays": {
+      "monday": "PZT",
+      "tuesday": "SAL",
+      "wednesday": "ÇAR",
+      "thursday": "PER",
+      "friday": "CUM",
+      "saturday": "CMT",
+      "sunday": "PAZ"
+    }
+  },
+  "dailyLog": {
+    "title": "{{date}} Günlüğü 💕",
+    "todayTitle": "Bugünkü Günlüğün 💕",
+    "subtitle": "Kendini nasıl hissediyorsun?",
+    "mood": {
+      "title": "Ruh Halim 💭"
+    },
+    "symptoms": {
+      "title": "Semptomlarım 🩺",
+      "longPressHint": "İpucu: Semptom açıklamasını görmek için uzun basın",
+      "categories": {
+        "pain": "Ağrılar",
+        "digestive": "Sindirim",
+        "physical": "Cilt & Fiziksel",
+        "energy": "Enerji & Uyku",
+        "appetite": "İştah",
+        "emotional": "Duygusal"
+      }
+    },
+    "notes": {
+      "title": "Notlarım 📝",
+      "placeholder": "Bugün nasıldı? Kendine not bırak 💕",
+      "charCount": "{{count}}/500"
+    },
+    "suggestions": {
+      "title": "💡 Öneriler"
+    },
+    "saveButton": "✨ Günlüğünü Kaydet ✨",
+    "saveSuccess": "✨ Günlüğün kaydedildi! ✨",
+    "saveError": "En az bir alan doldurulmalıdır!"
+  },
+  "reports": {
+    "title": "İstatistiklerim 📊",
+    "emptyState": {
+      "title": "Henüz yeterli veri yok",
+      "description": "İstatistikler görebilmek için en az 2 döngü kaydı gereklidir. Döngülerinizi takip etmeye devam edin! 🌸",
+      "action": "Takvime Git"
+    },
+    "stats": {
+      "avgCycle": "Ortalama Döngü",
+      "avgPeriod": "Ortalama Adet",
+      "totalCycles": "Toplam Döngü",
+      "lastCycle": "Son Döngü",
+      "days": "gün",
+      "records": "kayıt"
+    },
+    "charts": {
+      "cycleHistory": "📈 Döngü Geçmişi (Son 6 Döngü)",
+      "topSymptoms": "🩺 En Sık Semptomlar",
+      "moodTrend": "💭 Ruh Hali Trendi (Son 7 Gün)"
+    },
+    "prediction": {
+      "title": "🎯 Tahmin Sistemi",
+      "description": "Döngülerinizi takip ettikçe tahmin doğruluğu artacaktır.",
+      "insufficient": "Daha fazla veri gerekiyor (en az 3 döngü)",
+      "calculating": "Son {{count}} döngüde tahmin doğruluğu hesaplanıyor..."
+    }
+  },
+  "settings": {
+    "title": "Ayarlar ⚙️",
+    "sections": {
+      "cycle": "Döngü Tercihleri",
+      "notifications": "Bildirimler",
+      "appearance": "Görünüm",
+      "privacy": "Gizlilik & Güvenlik",
+      "data": "Veri Yönetimi",
+      "about": "Hakkında"
+    },
+    "cycle": {
+      "avgPeriodDays": "Ortalama Adet Süresi",
+      "avgCycleDays": "Ortalama Döngü Süresi",
+      "lastPeriodStart": "Son Adet Başlangıcı",
+      "notSelected": "Seçilmemiş"
+    },
+    "notifications": {
+      "enable": "Bildirimleri Aç",
+      "enableDescription": "Hatırlatma ve bildirimleri al",
+      "frequency": "Bildirim Sıklığı",
+      "frequencyOptions": {
+        "low": "Düşük",
+        "balanced": "Dengeli",
+        "high": "Yüksek"
+      },
+      "reminderTime": "Hatırlatma Saati",
+      "periodReminder": "Yaklaşan Adet Bildirimi",
+      "periodReminderDescription": "Adet başlamadan 2 gün önce hatırlat"
+    },
+    "appearance": {
+      "theme": "Tema",
+      "themeLight": "Açık Tema",
+      "language": "Dil",
+      "languageTurkish": "Türkçe"
+    },
+    "privacy": {
+      "dataSecurity": "Veri Güvenliği",
+      "dataSecurityDescription": "Tüm verileriniz cihazınızda güvende saklanır ve kimseyle paylaşılmaz.",
+      "pinLock": "PIN Kilidi",
+      "pinLockDescription": "Yakında eklenecek"
+    },
+    "data": {
+      "export": "Verileri Dışa Aktar",
+      "exportDescription": "JSON formatında yedek oluştur",
+      "import": "Verileri İçe Aktar",
+      "importDescription": "JSON dosyasından veri yükle",
+      "delete": "Tüm Verileri Sil",
+      "deleteDescription": "Dikkatli olun - geri alınamaz!",
+      "exportConfirm": "Tüm verileriniz JSON formatında dışa aktarılacak. Devam etmek istiyor musunuz?",
+      "importConfirm": "JSON dosyası seçerek verilerinizi içe aktarabilirsiniz.",
+      "deleteConfirm": "Bu işlem geri alınamaz! Tüm döngü kayıtlarınız, günlükleriniz ve ayarlarınız silinecek.",
+      "exportSuccess": "Verileriniz başarıyla dışa aktarıldı.",
+      "deleteSuccess": "Tüm veriler silindi.",
+      "featureSoon": "Bu özellik yakında eklenecek."
+    },
+    "about": {
+      "version": "Uygulama Versiyonu",
+      "medical": "Tıbbi Uyarı",
+      "medicalDescription": "Bu uygulama tıbbi tavsiye yerine geçmez.",
+      "privacyPolicy": "Gizlilik Politikası",
+      "privacyPolicyDescription": "Veri kullanımı hakkında bilgi",
+      "contact": "İletişim",
+      "contactEmail": "support@cyclemateapp.com",
+      "privacyPolicyText": "CycleMateApp, tüm verilerinizi cihazınızda saklar ve hiçbir üçüncü taraf ile paylaşmaz. Verileriniz tamamen gizlidir ve sadece sizin erişiminizdedir."
+    }
+  },
+  "symptoms": {
+    "cramp": "Kramp",
+    "headache": "Baş Ağrısı",
+    "backPain": "Sırt Ağrısı",
+    "jointPain": "Eklem Ağrısı",
+    "bloating": "Şişkinlik",
+    "nausea": "Bulantı",
+    "constipation": "Kabızlık",
+    "diarrhea": "İshal",
+    "acne": "Akne",
+    "breastTenderness": "Göğüs Hassasiyeti",
+    "discharge": "Akıntı",
+    "lowEnergy": "Düşük Enerji",
+    "sleepy": "Uykulu",
+    "insomnia": "Uyku Sorunu",
+    "appetite": "Artan İştah",
+    "cravings": "Besin İsteği",
+    "anxious": "Anksiyete",
+    "irritable": "Sinirlilik",
+    "focusIssues": "Konsantrasyon Zorluğu"
+  },
+  "moods": {
+    "ecstatic": "Muhteşem",
+    "happy": "Mutlu",
+    "calm": "Sakin",
+    "neutral": "Normal",
+    "sad": "Üzgün",
+    "angry": "Öfkeli",
+    "anxious": "Endişeli",
+    "tired": "Yorgun",
+    "irritable": "Sinirli"
+  },
+  "phases": {
+    "menstrual": {
+      "title": "Menstrual Faz (Adet Dönemi)",
+      "description": "Uterus duvarı (endometrium) dökülüyor. Vücudun yeni bir döngüye hazırlanıyor."
+    },
+    "follicular": {
+      "title": "Foliküler Faz (Enerji Yükseliyor)",
+      "description": "Yumurtalıklarda folikül gelişiyor, endometrium kalınlaşıyor. Enerji ve motivasyon artıyor."
+    },
+    "ovulation": {
+      "title": "Ovulasyon Fazı (Döl Verimlilik Zirvesi)",
+      "description": "Yumurta serbest bırakılıyor. Enerji, libido ve sosyal beceriler zirvede."
+    },
+    "luteal": {
+      "title": "Luteal Faz (Sakinleşme Dönemi)",
+      "description": "Corpus luteum progesterone salgılıyor. Geç dönemde PMS semptomları başlayabilir."
+    }
+  },
+  "notifications": {
+    "permission": {
+      "title": "Bildirim İzni",
+      "message": "Hatırlatmalar almak için bildirim izni vermeniz gerekiyor.",
+      "grant": "İzin Ver",
+      "deny": "Reddet"
+    },
+    "dailyLog": {
+      "title": "Günlük Hatırlatması",
+      "body": "Günlüğünü kaydet! 📖 Bugün nasıl hissediyorsun?"
+    },
+    "periodReminder": {
+      "title": "Adet Hatırlatması",
+      "body": "Adet dönemin yaklaşıyor 🌸 Hazırlık yapabilirsin."
+    },
+    "waterReminder": {
+      "title": "Su Hatırlatması",
+      "body": "Su içme zamanı! 💧 Kendine iyi bak."
+    },
+    "motivation": {
+      "title": "Günaydın!",
+      "body": "Bugün harika bir gün olacak! 🌞 Pozitif kal!"
+    }
+  }
+}

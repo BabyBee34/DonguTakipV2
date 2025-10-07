@@ -1,0 +1,301 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "back": "Back",
+    "continue": "Continue",
+    "skip": "Skip",
+    "start": "Start",
+    "next": "Next",
+    "previous": "Previous",
+    "done": "Done",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Info",
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "confirm": "Confirm",
+    "selectFile": "Select File",
+    "close": "Close",
+    "edit": "Edit",
+    "add": "Add",
+    "remove": "Remove",
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "refresh": "Refresh",
+    "retry": "Retry",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "tomorrow": "Tomorrow"
+  },
+  "onboarding": {
+    "welcome": {
+      "title": "Track Your Cycle Easily",
+      "description": "Log your period days, moods, and energy levels."
+    },
+    "reminders": {
+      "title": "Little Reminders for You",
+      "description": "Chocolate time? Water break? I'm here for you."
+    },
+    "privacy": {
+      "title": "Your Data Stays with You",
+      "description": "All information is safely stored on your device, never shared."
+    }
+  },
+  "setup": {
+    "lastPeriod": {
+      "title": "Select Last Period Start 🌸",
+      "description": "Choose the day your last period started to calculate your cycle.",
+      "selectDate": "Select Date"
+    },
+    "periodLength": {
+      "title": "Select Period Length ⏳",
+      "description": "How many days does your period usually last? (Average: 5 days)",
+      "selected": "Selected: {{days}} days"
+    },
+    "cycleLength": {
+      "title": "Select Cycle Length 🔄",
+      "description": "How many days is your cycle usually? (Average: 28 days)",
+      "selected": "Selected: {{days}} days"
+    }
+  },
+  "calendar": {
+    "title": "Hello 🌸",
+    "subtitle": "How are you today?",
+    "phaseInfoTitle": "Cycle Phase Info",
+    "phase": {
+      "moreInfo": "Tap for details →",
+      "labels": {
+        "duration": "Duration:",
+        "description": "Description:",
+        "hormones": "Hormone Info:",
+        "commonSymptoms": "Common Symptoms:",
+        "tips": "Tips:"
+      }
+    },
+    "legend": {
+      "menstrual": "🌸 Period",
+      "predicted": "🌷 Predicted",
+      "fertile": "🌱 Fertile",
+      "ovulation": "💜 Ovulation",
+      "today": "🌟 Today"
+    },
+    "actions": {
+      "startPeriod": "Start Period",
+      "endPeriod": "End Period",
+      "logDaily": "Log Today"
+    },
+    "weekdays": {
+      "monday": "MON",
+      "tuesday": "TUE",
+      "wednesday": "WED",
+      "thursday": "THU",
+      "friday": "FRI",
+      "saturday": "SAT",
+      "sunday": "SUN"
+    }
+  },
+  "dailyLog": {
+    "title": "{{date}} Log 💕",
+    "todayTitle": "Today's Log 💕",
+    "subtitle": "How are you feeling?",
+    "mood": {
+      "title": "My Mood 💭"
+    },
+    "symptoms": {
+      "title": "My Symptoms 🩺",
+      "longPressHint": "Tip: Long press a symptom to see its description",
+      "categories": {
+        "pain": "Pain",
+        "digestive": "Digestive",
+        "physical": "Skin & Physical",
+        "energy": "Energy & Sleep",
+        "appetite": "Appetite",
+        "emotional": "Emotional"
+      }
+    },
+    "notes": {
+      "title": "My Notes 📝",
+      "placeholder": "How was your day? Leave a note for yourself 💕",
+      "charCount": "{{count}}/500"
+    },
+    "suggestions": {
+      "title": "💡 Suggestions"
+    },
+    "saveButton": "✨ Save Your Log ✨",
+    "saveSuccess": "✨ Log saved! ✨",
+    "saveError": "At least one field must be filled!"
+  },
+  "reports": {
+    "title": "My Statistics 📊",
+    "emptyState": {
+      "title": "Not Enough Data Yet",
+      "description": "At least 2 cycle records are required to see statistics. Keep tracking your cycles! 🌸",
+      "action": "Go to Calendar"
+    },
+    "stats": {
+      "avgCycle": "Average Cycle",
+      "avgPeriod": "Average Period",
+      "totalCycles": "Total Cycles",
+      "lastCycle": "Last Cycle",
+      "days": "days",
+      "records": "records"
+    },
+    "charts": {
+      "cycleHistory": "📈 Cycle History (Last 6 Cycles)",
+      "topSymptoms": "🩺 Most Common Symptoms",
+      "moodTrend": "💭 Mood Trend (Last 7 Days)"
+    },
+    "prediction": {
+      "title": "🎯 Prediction System",
+      "description": "Prediction accuracy will improve as you track your cycles.",
+      "insufficient": "More data needed (at least 3 cycles)",
+      "calculating": "Calculating prediction accuracy for last {{count}} cycles..."
+    }
+  },
+  "settings": {
+    "title": "Settings ⚙️",
+    "sections": {
+      "cycle": "Cycle Preferences",
+      "notifications": "Notifications",
+      "appearance": "Appearance",
+      "privacy": "Privacy & Security",
+      "data": "Data Management",
+      "about": "About"
+    },
+    "cycle": {
+      "avgPeriodDays": "Average Period Length",
+      "avgCycleDays": "Average Cycle Length",
+      "lastPeriodStart": "Last Period Start",
+      "notSelected": "Not Selected"
+    },
+    "notifications": {
+      "enable": "Enable Notifications",
+      "enableDescription": "Receive reminders and notifications",
+      "frequency": "Notification Frequency",
+      "frequencyOptions": {
+        "low": "Low",
+        "balanced": "Balanced",
+        "high": "High"
+      },
+      "reminderTime": "Reminder Time",
+      "periodReminder": "Upcoming Period Notification",
+      "periodReminderDescription": "Remind 2 days before period starts"
+    },
+    "appearance": {
+      "theme": "Theme",
+      "themeLight": "Light Theme",
+      "language": "Language",
+      "languageTurkish": "Turkish"
+    },
+    "privacy": {
+      "dataSecurity": "Data Security",
+      "dataSecurityDescription": "All your data is securely stored on your device and never shared with anyone.",
+      "pinLock": "PIN Lock",
+      "pinLockDescription": "Coming soon"
+    },
+    "data": {
+      "export": "Export Data",
+      "exportDescription": "Create backup in JSON format",
+      "import": "Import Data",
+      "importDescription": "Load data from JSON file",
+      "delete": "Delete All Data",
+      "deleteDescription": "Be careful - this cannot be undone!",
+      "exportConfirm": "All your data will be exported in JSON format. Do you want to continue?",
+      "importConfirm": "You can import your data by selecting a JSON file.",
+      "deleteConfirm": "This action cannot be undone! All your cycle records, logs, and settings will be deleted.",
+      "exportSuccess": "Your data was successfully exported.",
+      "deleteSuccess": "All data deleted.",
+      "featureSoon": "This feature will be added soon."
+    },
+    "about": {
+      "version": "App Version",
+      "medical": "Medical Disclaimer",
+      "medicalDescription": "This app is not a substitute for medical advice.",
+      "privacyPolicy": "Privacy Policy",
+      "privacyPolicyDescription": "Information about data usage",
+      "contact": "Contact",
+      "contactEmail": "support@cyclemateapp.com",
+      "privacyPolicyText": "CycleMateApp stores all your data on your device and never shares it with any third parties. Your data is completely private and only accessible by you."
+    }
+  },
+  "symptoms": {
+    "cramp": "Cramps",
+    "headache": "Headache",
+    "backPain": "Back Pain",
+    "jointPain": "Joint Pain",
+    "bloating": "Bloating",
+    "nausea": "Nausea",
+    "constipation": "Constipation",
+    "diarrhea": "Diarrhea",
+    "acne": "Acne",
+    "breastTenderness": "Breast Tenderness",
+    "discharge": "Discharge",
+    "lowEnergy": "Low Energy",
+    "sleepy": "Sleepy",
+    "insomnia": "Insomnia",
+    "appetite": "Increased Appetite",
+    "cravings": "Cravings",
+    "anxious": "Anxious",
+    "irritable": "Irritable",
+    "focusIssues": "Focus Issues"
+  },
+  "moods": {
+    "ecstatic": "Ecstatic",
+    "happy": "Happy",
+    "calm": "Calm",
+    "neutral": "Neutral",
+    "sad": "Sad",
+    "angry": "Angry",
+    "anxious": "Anxious",
+    "tired": "Tired",
+    "irritable": "Irritable"
+  },
+  "phases": {
+    "menstrual": {
+      "title": "Menstrual Phase (Period)",
+      "description": "The uterine lining (endometrium) is shedding. Your body is preparing for a new cycle."
+    },
+    "follicular": {
+      "title": "Follicular Phase (Energy Rising)",
+      "description": "Follicles are developing in the ovaries, endometrium is thickening. Energy and motivation are increasing."
+    },
+    "ovulation": {
+      "title": "Ovulation Phase (Peak Fertility)",
+      "description": "Egg is released. Energy, libido, and social skills are at their peak."
+    },
+    "luteal": {
+      "title": "Luteal Phase (Calming Period)",
+      "description": "Corpus luteum secretes progesterone. PMS symptoms may begin in the late phase."
+    }
+  },
+  "notifications": {
+    "permission": {
+      "title": "Notification Permission",
+      "message": "You need to grant notification permission to receive reminders.",
+      "grant": "Grant Permission",
+      "deny": "Deny"
+    },
+    "dailyLog": {
+      "title": "Daily Reminder",
+      "body": "Log your day! 📖 How are you feeling today?"
+    },
+    "periodReminder": {
+      "title": "Period Reminder",
+      "body": "Your period is approaching 🌸 You can prepare."
+    },
+    "waterReminder": {
+      "title": "Water Reminder",
+      "body": "Time to drink water! 💧 Take care of yourself."
+    },
+    "motivation": {
+      "title": "Good morning!",
+      "body": "Today is going to be a great day! 🌞 Stay positive!"
+    }
+  }
+}
