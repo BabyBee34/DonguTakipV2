@@ -2,15 +2,17 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Slider from '@react-native-community/slider';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useTranslation } from 'react-i18next';
 import { clampNumber } from '../../utils/validation';
 
 export default function SetupPeriodLength({ navigation, route }: any) {
-  const { colors, typography, borderRadius } = useTheme();
+  const { colors, typography, borderRadius, gradients } = useTheme();
   const [days, setDays] = useState(5);
   const { lastPeriodStart } = route.params || {};
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
   const handleBack = () => {
     navigation.goBack();
@@ -18,7 +20,7 @@ export default function SetupPeriodLength({ navigation, route }: any) {
 
   return (
     <LinearGradient
-      colors={['#f3e7ed', '#fde9f2']}
+      colors={gradients.setup}
       style={styles.container}
     >
       {/* Back Button */}
@@ -80,12 +82,25 @@ export default function SetupPeriodLength({ navigation, route }: any) {
       </View>
 
       {/* Bottom Section */}
-      <View style={styles.bottomSection}>
+      <View style={[styles.bottomSection, { paddingBottom: Math.max(24, insets.bottom + 24) }]}>
         {/* Progress Dots */}
         <View style={styles.progressDots}>
-          <View style={[styles.dot, { backgroundColor: colors.primary + '30' }]} />
-          <View style={[styles.dot, styles.dotActive, { backgroundColor: colors.primary }]} />
-          <View style={[styles.dot, { backgroundColor: colors.primary + '30' }]} />
+          <View 
+            accessible={true}
+            accessibilityLabel={`${t('common.step')} 1 / 3`}
+            style={[styles.dot, { backgroundColor: colors.primary + '30' }]} 
+          />
+          <View 
+            accessible={true}
+            accessibilityLabel={`${t('common.step')} 2 / 3`}
+            accessibilityRole="progressbar"
+            style={[styles.dot, styles.dotActive, { backgroundColor: colors.primary }]} 
+          />
+          <View 
+            accessible={true}
+            accessibilityLabel={`${t('common.step')} 3 / 3`}
+            style={[styles.dot, { backgroundColor: colors.primary + '30' }]} 
+          />
         </View>
 
         {/* Next Button */}
@@ -101,12 +116,12 @@ export default function SetupPeriodLength({ navigation, route }: any) {
           style={styles.buttonWrapper}
         >
           <LinearGradient
-            colors={['#F472B6', '#A855F7']}
+            colors={gradients.setupButton}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.nextButton}
           >
-            <Text style={styles.buttonText}>Devam Et 🌸</Text>
+            <Text style={styles.buttonText}>{t('common.continue')}</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>

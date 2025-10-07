@@ -2,15 +2,18 @@
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useTranslation } from 'react-i18next';
 import { isValidISODate, isDateWithinRange } from '../../utils/validation';
+import Icon from '../../components/Icon';
 
 export default function SetupLastPeriod({ navigation }: any) {
-  const { colors, typography, borderRadius } = useTheme();
+  const { colors, typography, borderRadius, gradients, spacing } = useTheme();
   const [date, setDate] = useState('');
   const canNext = Boolean(date);
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
   const openPicker = () => {
     const initial = date ? new Date(date) : new Date();
@@ -47,7 +50,7 @@ export default function SetupLastPeriod({ navigation }: any) {
 
   return (
     <LinearGradient
-      colors={['#fde8f2', '#e6e6fa']}
+      colors={gradients.setup}
       style={styles.container}
     >
       <View style={styles.content}>
@@ -83,19 +86,49 @@ export default function SetupLastPeriod({ navigation }: any) {
           accessibilityHint="Son adet başlangıç tarihini seç"
         >
           <Text style={[styles.dateText, { color: date ? colors.ink : colors.inkSoft }]}>
-            {date ? formatDate(date) : 'Tarih seç'}
+            {date ? formatDate(date) : t('setup.lastPeriod.selectDate')}
           </Text>
-          <Text style={styles.calendarIcon}>📅</Text>
+          <Icon name="calendar-outline" size={24} color={colors.primary} style={{ marginLeft: spacing.sm }} />
         </TouchableOpacity>
       </View>
 
       {/* Bottom Section */}
-      <View style={styles.bottomSection}>
+      <View style={[styles.bottomSection, { paddingBottom: Math.max(24, insets.bottom + 24) }]}>
+        {/* Helper Text */}
+        {!canNext && (
+          <View style={{ 
+            paddingHorizontal: spacing.lg, 
+            paddingVertical: spacing.md, 
+            marginBottom: spacing.lg,
+            backgroundColor: colors.warning + '20',
+            borderLeftWidth: 4,
+            borderLeftColor: colors.warning,
+            borderRadius: borderRadius.card,
+          }}>
+            <Text style={{ fontSize: 14, color: colors.ink }}>
+              ℹ️ {t('setup.lastPeriod.helperText')}
+            </Text>
+          </View>
+        )}
+        
         {/* Progress Dots */}
         <View style={styles.progressDots}>
-          <View style={[styles.dot, styles.dotActive, { backgroundColor: colors.primary }]} />
-          <View style={[styles.dot, { backgroundColor: colors.primary + '30' }]} />
-          <View style={[styles.dot, { backgroundColor: colors.primary + '30' }]} />
+          <View 
+            accessible={true}
+            accessibilityLabel={`${t('common.step')} 1 / 3`}
+            accessibilityRole="progressbar"
+            style={[styles.dot, styles.dotActive, { backgroundColor: colors.primary }]} 
+          />
+          <View 
+            accessible={true}
+            accessibilityLabel={`${t('common.step')} 2 / 3`}
+            style={[styles.dot, { backgroundColor: colors.primary + '30' }]} 
+          />
+          <View 
+            accessible={true}
+            accessibilityLabel={`${t('common.step')} 3 / 3`}
+            style={[styles.dot, { backgroundColor: colors.primary + '30' }]} 
+          />
         </View>
 
         {/* Next Button */}
@@ -104,19 +137,22 @@ export default function SetupLastPeriod({ navigation }: any) {
           disabled={!canNext}
           accessibilityRole="button"
           accessibilityLabel={t('common.continue')}
-          style={styles.buttonWrapper}
+          style={[styles.buttonWrapper, { backgroundColor: canNext ? 'transparent' : colors.bgGray }]}
         >
-          <LinearGradient
-            colors={['#F472B6', '#A855F7']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={[
-              styles.nextButton,
-              { opacity: canNext ? 1 : 0.5 },
-            ]}
-          >
-            <Text style={styles.buttonText}>Devam Et 🌸</Text>
-          </LinearGradient>
+          {canNext ? (
+            <LinearGradient
+              colors={gradients.setupButton}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.nextButton}
+            >
+              <Text style={styles.buttonText}>{t('common.continue')}</Text>
+            </LinearGradient>
+          ) : (
+            <View style={styles.nextButton}>
+              <Text style={[styles.buttonText, { color: colors.inkLight }]}>{t('common.continue')}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
     </LinearGradient>

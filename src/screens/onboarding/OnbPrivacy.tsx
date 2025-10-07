@@ -2,10 +2,12 @@
 import { View, Text, Animated, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useTranslation } from 'react-i18next';
 import Svg, { Path } from 'react-native-svg';
 
 export default function OnbPrivacy() {
-  const { colors } = useTheme();
+  const { colors, gradients } = useTheme();
+  const { t } = useTranslation();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const lockAnim = useRef(new Animated.Value(1)).current;
   const float1 = useRef(new Animated.Value(0)).current;
@@ -80,7 +82,7 @@ export default function OnbPrivacy() {
 
   return (
     <LinearGradient
-      colors={['#E1D5F8', '#FFD6E8']}
+      colors={gradients.onboardingPrivacy}
       style={styles.container}
     >
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
@@ -128,12 +130,12 @@ export default function OnbPrivacy() {
 
         {/* Title */}
         <Text style={[styles.title, { color: colors.ink }]}>
-          Verilerin sende 🔒
+          {t('onboarding.privacy.title')}
         </Text>
 
         {/* Subtitle */}
         <Text style={[styles.subtitle, { color: colors.inkSoft }]}>
-          Tüm bilgiler cihazında güvende, kimseyle paylaşılmaz.
+          {t('onboarding.privacy.description')}
         </Text>
       </Animated.View>
     </LinearGradient>

@@ -34,4 +34,14 @@ export const darkColors = {
   fertileGreen: '#1F4A42',
   ovulationPurple: '#4A3660',
   todayMint: '#2A4A45',
+  
+  // Glassmorphism
+  glassBackground: 'rgba(44, 44, 46, 0.5)',
+  glassBorder: 'rgba(58, 58, 60, 0.6)',
+  glassBackgroundSoft: 'rgba(44, 44, 46, 0.3)',
+  glassBackgroundStrong: 'rgba(58, 58, 60, 0.8)',
+  
+  // Confetti colors
+  confetti1: '#FFB6D9',
+  confetti2: '#B794F6',
 };

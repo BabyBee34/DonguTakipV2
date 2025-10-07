@@ -1,6 +1,7 @@
 ﻿import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
 import { addPeriod, updatePeriod } from '../store/slices/periodsSlice';
@@ -13,26 +14,26 @@ import Modal from '../components/Modal';
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
 
-const CELL_SIZE = 48;
 const WEEKDAYS = ['PZT', 'SAL', 'ÇAR', 'PER', 'CUM', 'CMT', 'PAZ'];
 
 export default function CalendarScreen({ navigation }: any) {
-  const { colors, spacing, borderRadius, shadows } = useTheme();
+  const { colors, spacing, borderRadius, shadows, gradients } = useTheme();
   const { t, i18n } = useTranslation();
   const dispatch = useDispatch();
   const prefs = useSelector((state: RootState) => state.prefs);
   const periods = useSelector((state: RootState) => state.periods);
   const logs = useSelector((state: RootState) => state.logs);
+  const insets = useSafeAreaInsets();
   
   const [currentDate, setCurrentDate] = useState(new Date());
   const [phaseModalVisible, setPhaseModalVisible] = useState(false);
-  const width = Dimensions.get('window').width;
+  const { width } = useWindowDimensions();
 
   // Aktif adet kontrolü
   const activePeriod = periods.find(p => !p.end);
 
   // Takvim günlerini hesapla
-  const { monthStart, monthEnd, calendarDays, predictions } = useMemo(() => {
+  const { monthStart, monthEnd, calendarDays, predictions, cellSize } = useMemo(() => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     
@@ -46,13 +47,20 @@ export default function CalendarScreen({ navigation }: any) {
     const calendarStart = new Date(monthStart);
     calendarStart.setDate(calendarStart.getDate() - daysFromPrevMonth);
     
-    // 35 günlük takvim (5 hafta)
+    // 42 günlük takvim (6 hafta) - son günlerin görünmesi için
     const calendarDays: Date[] = [];
-    for (let i = 0; i < 35; i++) {
+    for (let i = 0; i < 42; i++) {
       const day = new Date(calendarStart);
       day.setDate(day.getDate() + i);
       calendarDays.push(day);
     }
+    
+    // Dinamik hücre boyutu hesaplama
+    const containerWidth = width - 32; // padding
+    const gapTotal = 6 * 4; // 6 gap @ 4px each
+    const cellSize = Math.floor((containerWidth - gapTotal) / 7);
+    cellSize; // Minimum 40, maksimum 56
+    const finalCellSize = Math.max(40, Math.min(56, cellSize));
     
     // Tahminleri hesapla
     const predictions = prefs.lastPeriodStart ? predictCycle(
@@ -67,8 +75,8 @@ export default function CalendarScreen({ navigation }: any) {
       toISO(calendarDays[calendarDays.length - 1])
     ) : [];
     
-    return { monthStart, monthEnd, calendarDays, predictions };
-  }, [currentDate, prefs, periods, logs]);
+    return { monthStart, monthEnd, calendarDays, predictions, cellSize: finalCellSize };
+  }, [currentDate, prefs, periods, logs, width]);
 
   // Ay değiştirme
   const goToPrevMonth = () => {
@@ -120,9 +128,9 @@ export default function CalendarScreen({ navigation }: any) {
   });
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#FFF3FA' }} contentContainerStyle={{ paddingBottom: spacing.xl }}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top, paddingBottom: Math.max(spacing.xl, insets.bottom + spacing.xl) }}>
       <LinearGradient
-        colors={['#FFF3FA', '#F5EDFF']}
+        colors={gradients.background}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xl }}
@@ -131,10 +139,10 @@ export default function CalendarScreen({ navigation }: any) {
         <View style={{ 
           borderRadius: 20, 
           padding: spacing.lg, 
-          backgroundColor: 'rgba(255, 255, 255, 0.5)',
+          backgroundColor: colors.glassBackground,
           borderWidth: 1,
-          borderColor: 'rgba(255, 255, 255, 0.6)',
-          shadowColor: '#E66FD2',
+          borderColor: colors.glassBorder,
+          shadowColor: colors.primary,
           shadowOffset: { width: 0, height: 4 },
           shadowOpacity: 0.1,
           shadowRadius: 16,
@@ -149,14 +157,10 @@ export default function CalendarScreen({ navigation }: any) {
               width: 48, 
               height: 48, 
               borderRadius: 24, 
-              backgroundColor: 'rgba(255, 255, 255, 0.8)', 
+              backgroundColor: colors.glassBackgroundStrong, 
               borderWidth: 2, 
-              borderColor: 'rgba(230, 111, 210, 0.3)',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 8,
-              elevation: 2,
+              borderColor: colors.primary + '4D',
+              ...shadows.card,
             }} />
           </View>
         </View>
@@ -165,15 +169,11 @@ export default function CalendarScreen({ navigation }: any) {
         <View style={{ 
           marginTop: spacing.lg, 
           borderRadius: 20, 
-          backgroundColor: 'rgba(255, 255, 255, 0.6)', 
+          backgroundColor: colors.glassBackground, 
           padding: spacing.lg,
           borderWidth: 1,
-          borderColor: 'rgba(255, 255, 255, 0.8)',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.08,
-          shadowRadius: 12,
-          elevation: 3,
+          borderColor: colors.glassBackgroundStrong,
+          ...shadows.card,
         }}>
           {/* Ay navigasyonu */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.xs }}>
@@ -211,20 +211,20 @@ export default function CalendarScreen({ navigation }: any) {
               const isCurrentMonth = day.getMonth() === currentDate.getMonth();
               
               let bgColor = 'transparent';
-              let textColor = isCurrentMonth ? '#111' : '#ccc';
+              let textColor = isCurrentMonth ? colors.ink : colors.inkLight;
               let icon = '';
               
               if (prediction) {
                 if (prediction.isMenstrual) {
                   bgColor = colors.menstrualRed;
-                  textColor = '#fff';
+                  textColor = colors.textOnDark;
                   icon = '🌸';
                 } else if (prediction.isPredictedMenstrual) {
                   bgColor = colors.predictedPink;
                   icon = '🌷';
                 } else if (prediction.isOvulation) {
                   bgColor = colors.ovulationPurple;
-                  textColor = '#fff';
+                  textColor = colors.textOnDark;
                   icon = '💜';
                 } else if (prediction.isFertile) {
                   bgColor = colors.fertileGreen;
@@ -238,12 +238,12 @@ export default function CalendarScreen({ navigation }: any) {
               }
 
               return (
-                <View key={idx} style={{ width: (width - 32) / 7, paddingVertical: spacing.sm, alignItems: 'center' }}>
+                <View key={idx} style={{ width: (width - 32) / 7, paddingVertical: spacing.xs, alignItems: 'center' }}>
                   <TouchableOpacity 
                     onPress={() => navigation.navigate('DailyLog', { date: dayISO })}
                     style={{
-                      width: CELL_SIZE,
-                      height: CELL_SIZE,
+                      width: cellSize,
+                      height: cellSize,
                       borderRadius: 12,
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -268,10 +268,10 @@ export default function CalendarScreen({ navigation }: any) {
         {/* Legend */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: spacing.md }} contentContainerStyle={{ paddingHorizontal: spacing.xs }}>
           {[
-            { label: t('calendar.legend.menstrual'), bg: colors.menstrualRed, color: '#fff' },
+            { label: t('calendar.legend.menstrual'), bg: colors.menstrualRed, color: colors.textOnDark },
             { label: t('calendar.legend.predicted'), bg: colors.predictedPink, color: colors.ink },
             { label: t('calendar.legend.fertile'), bg: colors.fertileGreen, color: colors.ink },
-            { label: t('calendar.legend.ovulation'), bg: colors.ovulationPurple, color: '#fff' },
+            { label: t('calendar.legend.ovulation'), bg: colors.ovulationPurple, color: colors.textOnDark },
             { label: t('calendar.legend.today'), bg: colors.bg, color: colors.ink, ring: colors.todayMint },
           ].map((c, i) => (
             <View key={i} style={{ paddingVertical: spacing.sm, paddingHorizontal: spacing.md, backgroundColor: c.bg, borderRadius: borderRadius.chip, marginRight: spacing.sm, borderWidth: c.ring ? 2 : 0, borderColor: c.ring || 'transparent' }}>
@@ -286,9 +286,11 @@ export default function CalendarScreen({ navigation }: any) {
             onPress={handlePeriodToggle}
             activeOpacity={0.8}
             style={{ flex: 1 }}
+            accessibilityRole="button"
+            accessibilityLabel={activePeriod ? t('calendar.endPeriod') : t('calendar.startPeriod')}
           >
             <LinearGradient
-              colors={['#FF7C9D', '#CBA8FF']}
+              colors={activePeriod ? [colors.danger, colors.menstrualRed] : [colors.success, colors.fertileGreen]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={{ 
@@ -296,15 +298,11 @@ export default function CalendarScreen({ navigation }: any) {
                 borderRadius: 16, 
                 alignItems: 'center', 
                 justifyContent: 'center',
-                shadowColor: '#FF7C9D',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 4,
+                ...shadows.button,
               }}
             >
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
-                {activePeriod ? '🩸 Adet Bitti' : '🌸 Adet Başlat'}
+              <Text style={{ color: colors.textOnDark, fontWeight: '700', fontSize: 15 }}>
+                {activePeriod ? '⏹ ' + t('calendar.endPeriod') : '▶ ' + t('calendar.startPeriod')}
               </Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -312,9 +310,11 @@ export default function CalendarScreen({ navigation }: any) {
             onPress={() => navigation.navigate('DailyLog')}
             activeOpacity={0.8}
             style={{ flex: 1 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('calendar.addDaily')}
           >
             <LinearGradient
-              colors={['#CBA8FF', '#7AD1C5']}
+              colors={gradients.button2}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={{ 
@@ -322,14 +322,10 @@ export default function CalendarScreen({ navigation }: any) {
                 borderRadius: 16, 
                 alignItems: 'center', 
                 justifyContent: 'center',
-                shadowColor: '#CBA8FF',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 4,
+                ...shadows.button,
               }}
             >
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>📝 Günlük Kaydet</Text>
+              <Text style={{ color: colors.textOnDark, fontWeight: '700', fontSize: 15 }}>✎ {t('calendar.addDaily')}</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>

@@ -20,6 +20,7 @@ import {
 import { exportDataToJSON, importDataFromJSON, deleteAllData } from '../services/storage';
 import * as DocumentPicker from 'expo-document-picker';
 import Icon from '../components/Icon';
+import Modal from '../components/Modal';
 
 interface SettingsSection {
   title: string;
@@ -54,6 +55,8 @@ export default function SettingsScreen() {
   const [notificationFrequency, setNotificationFrequency] = useState(notificationState.settings.frequency);
   const [reminderTime, setReminderTime] = useState(notificationState.settings.reminderTime);
   const [periodReminder, setPeriodReminder] = useState(notificationState.settings.periodReminder);
+  const [permissionInfoModalVisible, setPermissionInfoModalVisible] = useState(false);
+  const [frequencyModalVisible, setFrequencyModalVisible] = useState(false);
 
   // Bildirim izni kontrolü ve kullanıcı bilgilendirmesi
   useEffect(() => {
@@ -278,11 +281,34 @@ export default function SettingsScreen() {
   };
 
   const handleNotificationToggle = async (enabled: boolean) => {
+    if (enabled && !notificationState.permissionGranted) {
+      // İlk açılışta bilgi kartı göster
+      setPermissionInfoModalVisible(true);
+      return;
+    }
+    
     setNotifications(enabled);
     await updateNotificationSettings({ enabled });
     
     if (!enabled) {
       await cancelAllScheduledNotificationsAsync();
+    }
+  };
+
+  const confirmNotificationPermission = async () => {
+    setPermissionInfoModalVisible(false);
+    const granted = await requestNotificationPermission();
+    dispatch(setPermissionGranted(granted));
+    
+    if (granted) {
+      setNotifications(true);
+      await updateNotificationSettings({ enabled: true });
+    } else {
+      Alert.alert(
+        t('notifications.permission.title'),
+        t('notifications.permission.deniedMessage'),
+        [{ text: t('common.ok') }]
+      );
     }
   };
 
@@ -382,17 +408,7 @@ export default function SettingsScreen() {
           type: 'action',
           label: t('settings.notifications.frequency'),
           description: t(`settings.notifications.frequencyOptions.${notificationFrequency}` as any),
-          onPress: () => {
-            // Sıradaki moda geç
-            const modes: Array<'low' | 'balanced' | 'high'> = ['low', 'balanced', 'high'];
-            const currentIndex = modes.indexOf(notificationFrequency);
-            const nextIndex = (currentIndex + 1) % modes.length;
-            const nextMode = modes[nextIndex];
-            
-            handleFrequencyChange(nextMode);
-            
-            Alert.alert(t('common.success'), `${t('settings.notifications.frequency')}: ${t(`settings.notifications.frequencyOptions.${nextMode}` as any)}`);
-          },
+          onPress: () => setFrequencyModalVisible(true),
         },
         {
           id: 'reminderTime',
@@ -467,6 +483,11 @@ export default function SettingsScreen() {
           description: t('settings.data.importDescription'),
           onPress: handleImportData,
         },
+      ],
+    },
+    {
+      title: '⚠️ ' + t('settings.sections.dangerZone'),
+      items: [
         {
           id: 'delete',
           type: 'action',
@@ -556,7 +577,7 @@ export default function SettingsScreen() {
               </Text>
               {item.description && (
                 <Text style={{ fontSize: 14, color: colors.inkSoft }}>
-                  {item.description}
+                  {item.description} {(item.id === 'language' || item.id === 'theme') && '✓'}
                 </Text>
               )}
             </View>
@@ -618,34 +639,140 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bgSoft }}>
-      <View style={{ padding: spacing.xl, paddingTop: spacing.xxl }}>
-        <LinearGradient colors={[colors.bgSoft, colors.bg]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: borderRadius.card, padding: spacing.lg, marginBottom: spacing.xl, ...shadows.card }}>
-          <Text style={{ fontSize: 28, fontWeight: '700', color: colors.ink }}>
-            {t('settings.title')}
-          </Text>
-        </LinearGradient>
+    <>
+      <ScrollView style={{ flex: 1, backgroundColor: colors.bgSoft }}>
+        <View style={{ padding: spacing.xl, paddingTop: spacing.xxl }}>
+          <LinearGradient colors={[colors.bgSoft, colors.bg]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: borderRadius.card, padding: spacing.lg, marginBottom: spacing.xl, ...shadows.card }}>
+            <Text style={{ fontSize: 28, fontWeight: '700', color: colors.ink }}>
+              {t('settings.title')}
+            </Text>
+          </LinearGradient>
 
-        {settingsSections.map((section, sectionIndex) => (
-          <View key={sectionIndex} style={{ marginBottom: spacing.xl }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md, paddingHorizontal: spacing.sm }}>
-              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', marginRight: spacing.sm, ...shadows.card }}>
-                {section.title === t('settings.sections.cycle') && <Icon name="autorenew" size={18} color={colors.primary} />}
-                {section.title === t('settings.sections.notifications') && <Icon name="notifications" size={18} color={colors.primary} />}
-                {section.title === t('settings.sections.appearance') && <Icon name="palette" size={18} color={colors.primary} />}
-                {section.title === t('settings.sections.privacy') && <Icon name="lock" size={18} color={colors.primary} />}
-                {section.title === t('settings.sections.data') && <Icon name="backup" size={18} color={colors.primary} />}
-                {section.title === t('settings.sections.about') && <Icon name="info" size={18} color={colors.primary} />}
+          {settingsSections.map((section, sectionIndex) => (
+            <View key={sectionIndex} style={{ marginBottom: spacing.xl }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md, paddingHorizontal: spacing.sm }}>
+                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', marginRight: spacing.sm, ...shadows.card }}>
+                  {section.title === t('settings.sections.cycle') && <Icon name="autorenew" size={18} color={colors.primary} />}
+                  {section.title === t('settings.sections.notifications') && <Icon name="notifications" size={18} color={colors.primary} />}
+                  {section.title === t('settings.sections.appearance') && <Icon name="palette" size={18} color={colors.primary} />}
+                  {section.title === t('settings.sections.privacy') && <Icon name="lock" size={18} color={colors.primary} />}
+                  {section.title === t('settings.sections.data') && <Icon name="backup" size={18} color={colors.primary} />}
+                  {section.title === t('settings.sections.about') && <Icon name="info" size={18} color={colors.primary} />}
+                </View>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: colors.ink }}>
+                  {section.title}
+                </Text>
               </View>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: colors.ink }}>
-                {section.title}
+              
+              {section.items.map(renderSettingItem)}
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+
+      {/* Bildirim İzni Bilgi Kartı Modal */}
+    <Modal 
+      visible={permissionInfoModalVisible} 
+      onClose={() => setPermissionInfoModalVisible(false)}
+      title={t('notifications.permission.infoTitle')}
+    >
+      <View style={{ gap: spacing.lg }}>
+        <Text style={{ fontSize: 15, color: colors.ink, lineHeight: 22 }}>
+          {t('notifications.permission.infoMessage')}
+        </Text>
+        
+        <View style={{ 
+          backgroundColor: colors.info + '20', 
+          padding: spacing.lg, 
+          borderRadius: borderRadius.card,
+          borderLeftWidth: 4,
+          borderLeftColor: colors.info,
+        }}>
+          <Text style={{ fontSize: 14, color: colors.ink, lineHeight: 20 }}>
+            💡 {t('notifications.permission.infoNote')}
+          </Text>
+        </View>
+
+        <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.md }}>
+          <TouchableOpacity
+            onPress={() => setPermissionInfoModalVisible(false)}
+            style={{ 
+              flex: 1, 
+              paddingVertical: spacing.lg, 
+              borderRadius: borderRadius.button,
+              backgroundColor: colors.bgGray,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ fontSize: 16, fontWeight: '600', color: colors.inkSoft }}>
+              {t('common.cancel')}
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            onPress={confirmNotificationPermission}
+            style={{ 
+              flex: 1, 
+              paddingVertical: spacing.lg, 
+              borderRadius: borderRadius.button,
+              backgroundColor: colors.primary,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ fontSize: 16, fontWeight: '600', color: colors.textOnPrimary }}>
+              {t('common.confirm')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+
+    {/* Frekans Seçimi Modal */}
+    <Modal 
+      visible={frequencyModalVisible} 
+      onClose={() => setFrequencyModalVisible(false)}
+      title={t('settings.notifications.frequency')}
+    >
+      <View style={{ gap: spacing.sm }}>
+        {(['low', 'balanced', 'high'] as const).map((freq) => (
+          <TouchableOpacity
+            key={freq}
+            onPress={() => {
+              handleFrequencyChange(freq);
+              setFrequencyModalVisible(false);
+            }}
+            style={{
+              paddingVertical: spacing.lg,
+              paddingHorizontal: spacing.lg,
+              borderRadius: borderRadius.card,
+              backgroundColor: notificationFrequency === freq ? colors.primary200 : colors.bgSoft,
+              borderWidth: notificationFrequency === freq ? 2 : 1,
+              borderColor: notificationFrequency === freq ? colors.primary : colors.bgGray,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={{ 
+                fontSize: 16, 
+                fontWeight: notificationFrequency === freq ? '600' : '400',
+                color: notificationFrequency === freq ? colors.primary : colors.ink,
+                marginBottom: spacing.xs,
+              }}>
+                {t(`settings.notifications.frequencyOptions.${freq}` as any)}
+              </Text>
+              <Text style={{ fontSize: 13, color: colors.inkSoft, lineHeight: 18 }}>
+                {t(`settings.notifications.frequencyDescriptions.${freq}` as any)}
               </Text>
             </View>
-            
-            {section.items.map(renderSettingItem)}
-          </View>
+            {notificationFrequency === freq && (
+              <Icon name="checkmark-circle" size={24} color={colors.primary} style={{ marginLeft: spacing.md }} />
+            )}
+          </TouchableOpacity>
         ))}
       </View>
-    </ScrollView>
+    </Modal>
+    </>
   );
 }

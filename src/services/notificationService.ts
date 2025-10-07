@@ -291,8 +291,8 @@ export function setupNotificationListeners(navigation?: any): () => void {
 
   // Cleanup function
   return () => {
-    Notifications.removeNotificationSubscription(notificationListener);
-    Notifications.removeNotificationSubscription(responseListener);
+    notificationListener.remove();
+    responseListener.remove();
   };
 }
 

@@ -1,14 +1,13 @@
 ﻿import React, { useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, useWindowDimensions } from 'react-native';
 import { useDispatch } from 'react-redux';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OnbWelcome from './OnbWelcome';
 import OnbReminders from './OnbReminders';
 import OnbPrivacy from './OnbPrivacy';
 import { useTheme } from '../../theme/ThemeProvider';
 import { setOnboardingCompleted } from '../../store/slices/appSlice';
 import { useTranslation } from 'react-i18next';
-
-const { width } = Dimensions.get('window');
 
 const PAGES = [OnbWelcome, OnbReminders, OnbPrivacy];
 
@@ -18,6 +17,8 @@ export default function OnboardingScreen({ navigation }: any) {
   const listRef = useRef<FlatList>(null);
   const [index, setIndex] = useState(0);
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
 
   const goNext = () => {
     if (index < PAGES.length - 1) {
@@ -44,7 +45,7 @@ export default function OnboardingScreen({ navigation }: any) {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <TouchableOpacity onPress={skip} style={{ position: 'absolute', right: 16, top: 16, zIndex: 10 }}>
+      <TouchableOpacity onPress={skip} style={{ position: 'absolute', right: 16, top: Math.max(16, insets.top), zIndex: 10 }}>
         <Text style={{ color: colors.inkLight }}>{t('common.skip')}</Text>
       </TouchableOpacity>
 
@@ -66,15 +67,18 @@ export default function OnboardingScreen({ navigation }: any) {
         }}
       />
 
-      <View style={{ padding: 16 }}>
+      <View style={{ padding: 16, paddingBottom: Math.max(16, insets.bottom) }}>
         <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 12 }}>
           {PAGES.map((_, i) => (
             <View
               key={i}
+              accessible={true}
+              accessibilityLabel={`${t('common.step')} ${i + 1} / ${PAGES.length}`}
+              accessibilityRole="progressbar"
               style={{
-                width: 10,
-                height: 10,
-                borderRadius: 5,
+                width: i === index ? 12 : 10,
+                height: i === index ? 12 : 10,
+                borderRadius: i === index ? 6 : 5,
                 marginHorizontal: 6,
                 backgroundColor: i === index ? colors.primary : colors.bgGray,
               }}

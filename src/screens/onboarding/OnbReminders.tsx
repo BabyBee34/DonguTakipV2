@@ -2,10 +2,12 @@
 import { View, Text, Animated, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../theme/ThemeProvider';
+import { useTranslation } from 'react-i18next';
 import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 
 export default function OnbReminders() {
-  const { colors, typography } = useTheme();
+  const { colors, typography, gradients } = useTheme();
+  const { t } = useTranslation();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const float1 = useRef(new Animated.Value(0)).current;
@@ -74,7 +76,7 @@ export default function OnbReminders() {
 
   return (
     <LinearGradient
-      colors={['#d4f2e9', '#fde8ed']}
+      colors={gradients.onboardingReminders}
       style={styles.container}
     >
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
@@ -109,12 +111,12 @@ export default function OnbReminders() {
 
         {/* Title */}
         <Text style={[styles.title, { color: colors.ink }]}>
-          Kendine küçük hatırlatmalar 💕
+          {t('onboarding.reminders.title')}
         </Text>
 
         {/* Subtitle */}
         <Text style={[styles.subtitle, { color: colors.inkSoft }]}>
-          Çikolata zamanı mı? Su içme vakti mi? Senin yanında olacağım.
+          {t('onboarding.reminders.description')}
         </Text>
       </Animated.View>
     </LinearGradient>

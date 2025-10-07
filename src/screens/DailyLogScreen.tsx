@@ -1,8 +1,9 @@
 ﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Dimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, useWindowDimensions, KeyboardAvoidingView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { RootState } from '../store';
 import { addLog, updateLog } from '../store/slices/logsSlice';
@@ -18,14 +19,14 @@ import SymptomGrid from '../components/SymptomGrid';
 // @ts-ignore
 import { v4 as uuidv4 } from 'uuid';
 
-const { width, height } = Dimensions.get('window');
-
 export default function DailyLogScreen({ route, navigation }: any) {
+  const { width } = useWindowDimensions();
   const { colors, spacing, borderRadius, shadows } = useTheme();
   const dispatch = useDispatch();
   const logs = useSelector((state: RootState) => state.logs);
   const confettiRef = useRef<any>(null);
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   
   const selectedDate = route?.params?.date || getTodayISO();
   const existingLog = logs.find(l => l.date === selectedDate);
@@ -163,20 +164,32 @@ export default function DailyLogScreen({ route, navigation }: any) {
               ))}
             </View>
           )}
-
-          {/* Kaydet Butonu */}
-          <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.xl }}>
-            <Button
-              title={t('dailyLog.saveButton')}
-              onPress={handleSave}
-              variant="primary"
-              size="large"
-              accessibilityLabel={t('dailyLog.saveButton')}
-              accessibilityHint={t('dailyLog.subtitle')}
-              style={{ marginBottom: spacing.xxl }}
-            />
-          </View>
       </ScrollView>
+      
+      {/* Sticky Kaydet Butonu */}
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'position' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <View style={{ 
+          paddingHorizontal: spacing.xl, 
+          paddingTop: spacing.md,
+          paddingBottom: Math.max(spacing.md, insets.bottom),
+          backgroundColor: colors.bg,
+          borderTopWidth: 1,
+          borderTopColor: colors.bgGray,
+          ...shadows.card,
+        }}>
+          <Button
+            title={t('dailyLog.saveButton')}
+            onPress={handleSave}
+            variant="primary"
+            size="large"
+            accessibilityLabel={t('dailyLog.saveButton')}
+            accessibilityHint={t('dailyLog.subtitle')}
+          />
+        </View>
+      </KeyboardAvoidingView>
       
       {/* Confetti Animation */}
       {showConfetti && (
@@ -186,7 +199,7 @@ export default function DailyLogScreen({ route, navigation }: any) {
           origin={{ x: width / 2, y: 0 }}
           fadeOut
           autoStart={false}
-          colors={[colors.primary, colors.lilac, colors.mint, '#FFB6D9', '#B794F6']}
+          colors={[colors.primary, colors.lilac, colors.mint, colors.confetti1, colors.confetti2]}
         />
       )}
       

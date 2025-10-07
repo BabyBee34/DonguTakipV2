@@ -6,6 +6,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Provider, useSelector } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { store, persistor, RootState } from './src/store';
 import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
 import './src/i18n'; // Initialize i18n
@@ -113,17 +114,19 @@ export default function App() {
   // @ts-ignore
   Text.defaultProps.style = [{ fontFamily: 'Nunito_400Regular' }];
   return (
-    <Provider store={store}>
-      <PersistGate loading={null} persistor={persistor}>
-        <ThemeProvider>
-          <ThemedStatusBar />
-          <ErrorBoundary>
-            <NavigationContainer>
-              <AppNavigator />
-            </NavigationContainer>
-          </ErrorBoundary>
-        </ThemeProvider>
-      </PersistGate>
-    </Provider>
+    <SafeAreaProvider>
+      <Provider store={store}>
+        <PersistGate loading={null} persistor={persistor}>
+          <ThemeProvider>
+            <ThemedStatusBar />
+            <ErrorBoundary>
+              <NavigationContainer>
+                <AppNavigator />
+              </NavigationContainer>
+            </ErrorBoundary>
+          </ThemeProvider>
+        </PersistGate>
+      </Provider>
+    </SafeAreaProvider>
   );
 }

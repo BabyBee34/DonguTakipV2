@@ -1,3 +1,4 @@
+// Light Theme Color Tokens
 export const lightColors = {
   // Primary (Ana pembe)
   primary: '#E66FD2',
@@ -34,4 +35,14 @@ export const lightColors = {
   fertileGreen: '#D6FFF6',
   ovulationPurple: '#CBA8FF',
   todayMint: '#7AD1C5',
+  
+  // Glassmorphism
+  glassBackground: 'rgba(255, 255, 255, 0.5)',
+  glassBorder: 'rgba(255, 255, 255, 0.6)',
+  glassBackgroundSoft: 'rgba(255, 255, 255, 0.3)',
+  glassBackgroundStrong: 'rgba(255, 255, 255, 0.8)',
+  
+  // Confetti colors
+  confetti1: '#FFB6D9',
+  confetti2: '#B794F6',
 } as const;

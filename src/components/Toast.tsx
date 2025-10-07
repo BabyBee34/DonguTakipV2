@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, Animated, ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeProvider';
+import Icon from './Icon';
 
 export interface ToastProps {
   message: string;
@@ -20,6 +22,7 @@ export default function Toast({
   const { colors, spacing, borderRadius, shadows } = useTheme();
   const animatedValue = useRef(new Animated.Value(0)).current;
   const slideValue = useRef(new Animated.Value(-100)).current;
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     // Show animation
@@ -88,16 +91,16 @@ export default function Toast({
 
   const typeStyles = getTypeStyles();
 
-  const getIcon = () => {
+  const getIconName = () => {
     switch (type) {
       case 'success':
-        return '✅';
+        return 'checkmark-circle';
       case 'error':
-        return '❌';
+        return 'close-circle';
       case 'warning':
-        return '⚠️';
+        return 'warning';
       default: // info
-        return 'ℹ️';
+        return 'information-circle';
     }
   };
 
@@ -105,7 +108,7 @@ export default function Toast({
     <Animated.View
       style={{
         position: 'absolute',
-        top: 50,
+        top: Math.max(50, insets.top + 10),
         left: spacing.lg,
         right: spacing.lg,
         backgroundColor: typeStyles.backgroundColor,
@@ -119,9 +122,7 @@ export default function Toast({
         ...style,
       }}
     >
-      <Text style={{ fontSize: 20, marginRight: spacing.sm }}>
-        {getIcon()}
-      </Text>
+      <Icon name={getIconName()} size={24} color="#fff" style={{ marginRight: spacing.sm }} />
       <Text style={{
         flex: 1,
         fontSize: 16,

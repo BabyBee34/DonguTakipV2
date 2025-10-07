@@ -1,19 +1,19 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
-import { colors } from './colors';
+import { lightColors } from './lightColors';
 import { darkColors } from './darkColors';
 import { typography } from './typography';
 import { spacing, borderRadius, shadows } from './spacing';
-import { gradients } from './gradients';
+import { lightGradients, darkGradients } from './gradients';
 
 export interface Theme {
-  colors: typeof colors;
+  colors: typeof lightColors;
   typography: typeof typography;
   spacing: typeof spacing;
   borderRadius: typeof borderRadius;
   shadows: typeof shadows;
-  gradients: typeof gradients;
+  gradients: typeof lightGradients;
   isDark: boolean;
 }
 
@@ -25,16 +25,17 @@ interface ThemeProviderProps {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const theme = useSelector((state: RootState) => state.settings.theme);
-  
-  const currentColors = theme === 'dark' ? darkColors : colors;
-  
+
+  const currentColors = theme === 'dark' ? darkColors : lightColors;
+  const currentGradients = theme === 'dark' ? darkGradients : lightGradients;
+
   const themeValue: Theme = {
     colors: currentColors,
     typography,
     spacing,
     borderRadius,
     shadows,
-    gradients,
+    gradients: currentGradients,
     isDark: theme === 'dark',
   };
 

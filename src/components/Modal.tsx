@@ -10,6 +10,7 @@ import {
   PanResponder,
   TouchableWithoutFeedback,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeProvider';
 
 interface ModalProps {
@@ -30,6 +31,7 @@ export default function Modal({
   swipeToClose = true,
 }: ModalProps) {
   const { colors, spacing, borderRadius, shadows } = useTheme();
+  const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(0)).current;
   const panY = useRef(new Animated.Value(0)).current;
 
@@ -133,24 +135,25 @@ export default function Modal({
             <TouchableOpacity
               onPress={onClose}
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
+                width: 44,
+                height: 44,
+                borderRadius: 22,
                 backgroundColor: colors.bgSoft,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
               accessibilityRole="button"
               accessibilityLabel="Kapat"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Text style={{ fontSize: 18, color: colors.inkSoft }}>×</Text>
+              <Text style={{ fontSize: 24, color: colors.inkSoft, lineHeight: 28 }}>×</Text>
             </TouchableOpacity>
           </View>
 
           {/* Content */}
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: spacing.lg }}
+            contentContainerStyle={{ padding: spacing.lg, paddingBottom: Math.max(spacing.lg, insets.bottom) }}
           >
             {children}
           </ScrollView>

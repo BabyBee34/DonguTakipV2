@@ -31,7 +31,8 @@
     "retry": "Tekrar Dene",
     "today": "Bugün",
     "yesterday": "Dün",
-    "tomorrow": "Yarın"
+    "tomorrow": "Yarın",
+    "step": "Adım"
   },
   "onboarding": {
     "welcome": {
@@ -51,7 +52,8 @@
     "lastPeriod": {
       "title": "Son adet başlangıcını seç 🌸",
       "description": "Döngünü hesaplayabilmem için son adetinin başladığı günü seç.",
-      "selectDate": "Tarih seç"
+      "selectDate": "Tarih seç",
+      "helperText": "Lütfen devam etmek için bir tarih seçin"
     },
     "periodLength": {
       "title": "Adet süreni seç ⏳",
@@ -68,6 +70,9 @@
     "title": "Merhaba 🌸",
     "subtitle": "Bugün nasılsın?",
     "phaseInfoTitle": "Döngü Fazı Bilgisi",
+    "startPeriod": "Adet Başlat",
+    "endPeriod": "Adet Bitti",
+    "addDaily": "Günlük Kaydet",
     "phase": {
       "moreInfo": "Detaylı bilgi için tıkla →",
       "labels": {
@@ -155,7 +160,8 @@
       "title": "🎯 Tahmin Sistemi",
       "description": "Döngülerinizi takip ettikçe tahmin doğruluğu artacaktır.",
       "insufficient": "Daha fazla veri gerekiyor (en az 3 döngü)",
-      "calculating": "Son {{count}} döngüde tahmin doğruluğu hesaplanıyor..."
+      "calculating": "Son {{count}} döngüde tahmin doğruluğu hesaplanıyor...",
+      "explanation": "Bu oran, geçmiş döngü verilerinize dayanarak hesaplanmıştır. Daha fazla veri girdikçe doğruluk artacaktır."
     }
   },
   "settings": {
@@ -166,6 +172,7 @@
       "appearance": "Görünüm",
       "privacy": "Gizlilik & Güvenlik",
       "data": "Veri Yönetimi",
+      "dangerZone": "Tehlikeli Bölge",
       "about": "Hakkında"
     },
     "cycle": {
@@ -182,6 +189,11 @@
         "low": "Düşük",
         "balanced": "Dengeli",
         "high": "Yüksek"
+      },
+      "frequencyDescriptions": {
+        "low": "Sadece önemli hatırlatmalar (günde 1-2 bildirim)",
+        "balanced": "Günlük hatırlatma ve döngü bildirimleri (günde 2-3 bildirim)",
+        "high": "Tüm hatırlatmalar ve motivasyon mesajları (günde 4+ bildirim)"
       },
       "reminderTime": "Hatırlatma Saati",
       "periodReminder": "Yaklaşan Adet Bildirimi",
@@ -279,7 +291,11 @@
       "title": "Bildirim İzni",
       "message": "Hatırlatmalar almak için bildirim izni vermeniz gerekiyor.",
       "grant": "İzin Ver",
-      "deny": "Reddet"
+      "deny": "Reddet",
+      "infoTitle": "Bildirimler Neden Gerekli?",
+      "infoMessage": "CycleMate, regl döneminizi takip etmenize yardımcı olmak için bildirim izni istiyor. Yaklaşan adet dönemi, günlük kayıt hatırlatmaları ve sağlık önerileri göndereceğiz.",
+      "infoNote": "Bildirimleri istediğiniz zaman ayarlardan kapatabilir veya sıklığını değiştirebilirsiniz.",
+      "deniedMessage": "Bildirim izni reddedildi. Ayarlardan izin verebilirsiniz."
     },
     "dailyLog": {
       "title": "Günlük Hatırlatması",

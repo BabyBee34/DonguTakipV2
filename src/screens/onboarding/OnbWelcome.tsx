@@ -1,15 +1,14 @@
-﻿import React, { useEffect, useRef } from 'react';
-import { View, Text, Animated, StyleSheet, Dimensions } from 'react-native';
+﻿import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, Animated, StyleSheet, AccessibilityInfo } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useTranslation } from 'react-i18next';
 import Svg, { Circle, Path, Defs, RadialGradient, Stop, G } from 'react-native-svg';
 
-const { width, height } = Dimensions.get('window');
-
 export default function OnbWelcome() {
-  const { colors, typography } = useTheme();
+  const { colors, typography, gradients } = useTheme();
   const { t } = useTranslation();
+  const [reduceMotion, setReduceMotion] = useState(false);
   
   // Animasyonlar
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -22,6 +21,18 @@ export default function OnbWelcome() {
   const sparkle6 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // Check reduced motion preference
+    AccessibilityInfo.isReduceMotionEnabled().then(enabled => {
+      setReduceMotion(enabled);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      // Skip animations
+      fadeAnim.setValue(1);
+      return;
+    }
     // Fade in
     Animated.timing(fadeAnim, {
       toValue: 1,
@@ -101,7 +112,7 @@ export default function OnbWelcome() {
 
   return (
     <LinearGradient
-      colors={['#FDE2F3', '#E9D5FF']}
+      colors={gradients.onboardingWelcome}
       style={styles.container}
     >
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
@@ -153,12 +164,12 @@ export default function OnbWelcome() {
 
         {/* Title */}
         <Text style={[styles.title, { color: colors.ink }]}>
-          Döngünü kolayca takip et
+          {t('onboarding.welcome.title')}
         </Text>
 
         {/* Subtitle */}
         <Text style={[styles.subtitle, { color: colors.inkSoft }]}>
-          Regl günlerini, ruh halini ve enerjini kaydet.
+          {t('onboarding.welcome.description')}
         </Text>
       </Animated.View>
     </LinearGradient>

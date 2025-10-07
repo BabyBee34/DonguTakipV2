@@ -58,6 +58,16 @@ export default function Button({
   const sizeStyles = getSizeStyles();
 
   const getVariantStyles = () => {
+    if (disabled) {
+      // Disabled state: neutral background for all variants
+      return {
+        backgroundColor: colors.bgGray,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        textColor: colors.inkLight,
+      };
+    }
+    
     switch (variant) {
       case 'secondary':
         return {
@@ -94,7 +104,6 @@ export default function Button({
     backgroundColor: variantStyles.backgroundColor,
     borderWidth: variantStyles.borderWidth,
     borderColor: variantStyles.borderColor,
-    opacity: disabled ? 0.5 : 1,
     minWidth: 48, // WCAG AA touch target minimum
     ...style,
   };

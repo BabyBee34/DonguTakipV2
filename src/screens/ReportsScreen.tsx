@@ -303,6 +303,20 @@ export default function ReportsScreen({ navigation }: any) {
             <Text style={{ fontSize: 12, color: colors.inkLight, marginTop: spacing.xs }}>
               {t('reports.prediction.calculating', { count: 3 })}
             </Text>
+            
+            {/* Açıklama - İnfo Box */}
+            <View style={{ 
+              marginTop: spacing.md, 
+              padding: spacing.md, 
+              backgroundColor: colors.info + '20', 
+              borderLeftWidth: 3,
+              borderLeftColor: colors.info,
+              borderRadius: borderRadius.card / 2,
+            }}>
+              <Text style={{ fontSize: 12, color: colors.ink, lineHeight: 18 }}>
+                ℹ️ {t('reports.prediction.explanation')}
+              </Text>
+            </View>
           </>
         ) : (
           <Text style={{ fontSize: 14, fontWeight: '600', color: colors.inkSoft }}>

@@ -3,22 +3,23 @@ import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { Mood } from '../types';
 import { useTheme } from '../theme/ThemeProvider';
 import { useTranslation } from 'react-i18next';
+import Icon from './Icon';
 
 interface MoodSelectorProps {
   selectedMood?: Mood;
   onSelect: (mood: Mood) => void;
 }
 
-const MOODS: { mood: Mood; emoji: string; label: string }[] = [
-  { mood: 'ecstatic', emoji: '🤩', label: 'Muhteşem' },
-  { mood: 'happy', emoji: '😊', label: 'Mutlu' },
-  { mood: 'calm', emoji: '😌', label: 'Sakin' },
-  { mood: 'neutral', emoji: '😐', label: 'Normal' },
-  { mood: 'tired', emoji: '😴', label: 'Yorgun' },
-  { mood: 'sad', emoji: '😢', label: 'Üzgün' },
-  { mood: 'angry', emoji: '😠', label: 'Öfkeli' },
-  { mood: 'anxious', emoji: '😰', label: 'Endişeli' },
-  { mood: 'irritable', emoji: '😤', label: 'Sinirli' },
+const MOODS: { mood: Mood; icon: string; label: string }[] = [
+  { mood: 'ecstatic', icon: 'star', label: 'Muhteşem' },
+  { mood: 'happy', icon: 'happy-outline', label: 'Mutlu' },
+  { mood: 'calm', icon: 'flower-outline', label: 'Sakin' },
+  { mood: 'neutral', icon: 'remove-circle-outline', label: 'Normal' },
+  { mood: 'tired', icon: 'moon-outline', label: 'Yorgun' },
+  { mood: 'sad', icon: 'sad-outline', label: 'Üzgün' },
+  { mood: 'angry', icon: 'flame', label: 'Öfkeli' },
+  { mood: 'anxious', icon: 'alert-circle-outline', label: 'Endişeli' },
+  { mood: 'irritable', icon: 'warning-outline', label: 'Sinirli' },
 ];
 
 function MoodSelector({ selectedMood, onSelect }: MoodSelectorProps) {
@@ -36,7 +37,7 @@ function MoodSelector({ selectedMood, onSelect }: MoodSelectorProps) {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingVertical: spacing.xs }}
       >
-        {MOODS.map(({ mood, emoji, label }) => {
+        {MOODS.map(({ mood, icon, label }) => {
           const isSelected = selectedMood === mood;
           
           return (
@@ -54,10 +55,16 @@ function MoodSelector({ selectedMood, onSelect }: MoodSelectorProps) {
                 minWidth: 72,
                 transform: [{ scale: isSelected ? 1.05 : 1 }],
               }}
+              accessibilityRole="button"
+              accessibilityLabel={t(`moods.${mood}`)}
+              accessibilityState={{ selected: isSelected }}
             >
-              <Text style={{ fontSize: 32, marginBottom: spacing.xs }}>
-                {emoji}
-              </Text>
+              <Icon 
+                name={icon} 
+                size={36} 
+                color={isSelected ? colors.primary : colors.inkSoft}
+                style={{ marginBottom: spacing.xs }}
+              />
               <Text 
                 style={{ 
                   fontSize: 11, 
@@ -66,7 +73,7 @@ function MoodSelector({ selectedMood, onSelect }: MoodSelectorProps) {
                   textAlign: 'center',
                 }}
               >
-                {label}
+                {t(`moods.${mood}`)}
               </Text>
             </TouchableOpacity>
           );
