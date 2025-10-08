@@ -1,7 +1,69 @@
-import React from 'react';
-import { View, Text, Pressable } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, Pressable, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Drop, Footprints, Armchair, Shower } from 'phosphor-react-native';
+
+const HabitButton = ({ habit, isSelected, onPress }: any) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.98,
+      useNativeDriver: true,
+      speed: 50,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 50,
+    }).start();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <Pressable
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          onPress();
+        }}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        accessibilityRole="button"
+        accessibilityLabel={habit.label}
+        accessibilityState={{ selected: isSelected }}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 6,
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          borderRadius: 12,
+          borderWidth: 1,
+          backgroundColor: isSelected ? '#FFE1EE' : '#F7F7F8',
+          borderColor: isSelected ? '#FFB6D4' : 'transparent',
+        }}
+      >
+        <habit.Icon
+          size={18}
+          weight={isSelected ? 'fill' : 'regular'}
+          color={isSelected ? '#FF5BA6' : '#6C6C6C'}
+        />
+        <Text
+          style={{
+            fontSize: 12,
+            fontWeight: isSelected ? '600' : '500',
+            color: isSelected ? '#1F1F1F' : '#6C6C6C',
+          }}
+        >
+          {habit.label}
+        </Text>
+      </Pressable>
+    </Animated.View>
+  );
+};
 
 const HABITS = [
   { key: 'water', label: 'Su içtim', Icon: Drop },
@@ -28,42 +90,12 @@ export default function QuickHabits({ selected, onToggle }: QuickHabitsProps) {
         {HABITS.map((habit) => {
           const isSelected = selected.includes(habit.key as HabitKey);
           return (
-            <Pressable
+            <HabitButton
               key={habit.key}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onToggle(habit.key as HabitKey);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={habit.label}
-              accessibilityState={{ selected: isSelected }}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 12,
-                borderWidth: 1,
-                backgroundColor: isSelected ? '#FFE1EE' : '#F7F7F8',
-                borderColor: isSelected ? '#FFB6D4' : 'transparent',
-              }}
-            >
-              <habit.Icon
-                size={18}
-                weight={isSelected ? 'fill' : 'regular'}
-                color={isSelected ? '#FF5BA6' : '#6C6C6C'}
-              />
-              <Text
-                style={{
-                  fontSize: 12,
-                  fontWeight: isSelected ? '600' : '500',
-                  color: isSelected ? '#1F1F1F' : '#6C6C6C',
-                }}
-              >
-                {habit.label}
-              </Text>
-            </Pressable>
+              habit={habit}
+              isSelected={isSelected}
+              onPress={() => onToggle(habit.key as HabitKey)}
+            />
           );
         })}
       </View>

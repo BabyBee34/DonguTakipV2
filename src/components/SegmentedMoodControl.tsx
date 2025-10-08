@@ -1,7 +1,63 @@
-import React from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, Pressable, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useThemeColors } from '../theme';
+
+const MoodButton = ({ mood, isSelected, onPress }: any) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.98,
+      useNativeDriver: true,
+      speed: 50,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 50,
+    }).start();
+  };
+
+  return (
+    <Animated.View style={{ flex: 1, minWidth: 74, transform: [{ scale: scaleAnim }] }}>
+      <Pressable
+        onPress={() => {
+          Haptics.selectionAsync();
+          onPress();
+        }}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        accessibilityRole="button"
+        accessibilityLabel={`Ruh hali: ${mood.label}`}
+        accessibilityState={{ selected: isSelected }}
+        style={{
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          borderRadius: 14,
+          borderWidth: 1,
+          backgroundColor: isSelected ? '#FFE1EE' : '#F7F7F8',
+          borderColor: isSelected ? '#FFB6D4' : 'transparent',
+          alignItems: 'center',
+        }}
+      >
+        <Text style={{ fontSize: 20, marginBottom: 2 }}>{mood.emoji}</Text>
+        <Text
+          style={{
+            fontSize: 13,
+            fontWeight: isSelected ? '700' : '600',
+            color: isSelected ? '#1F1F1F' : '#6C6C6C',
+          }}
+        >
+          {mood.label}
+        </Text>
+      </Pressable>
+    </Animated.View>
+  );
+};
 
 const MOODS = [
   { key: 'harika', label: 'Harika', emoji: '😄' },
@@ -32,38 +88,12 @@ export default function SegmentedMoodControl({ selected, onSelect }: SegmentedMo
         {MOODS.map((mood) => {
           const isSelected = selected === mood.key;
           return (
-            <Pressable
+            <MoodButton
               key={mood.key}
-              onPress={() => {
-                Haptics.selectionAsync();
-                onSelect(mood.key as MoodKey);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={`Ruh hali: ${mood.label}`}
-              accessibilityState={{ selected: isSelected }}
-              style={{
-                flex: 1,
-                minWidth: 74,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                borderRadius: 14,
-                borderWidth: 1,
-                backgroundColor: isSelected ? '#FFE1EE' : '#F7F7F8',
-                borderColor: isSelected ? '#FFB6D4' : 'transparent',
-                alignItems: 'center',
-              }}
-            >
-              <Text style={{ fontSize: 20, marginBottom: 2 }}>{mood.emoji}</Text>
-              <Text
-                style={{
-                  fontSize: 13,
-                  fontWeight: isSelected ? '700' : '600',
-                  color: isSelected ? '#1F1F1F' : '#6C6C6C',
-                }}
-              >
-                {mood.label}
-              </Text>
-            </Pressable>
+              mood={mood}
+              isSelected={isSelected}
+              onPress={() => onSelect(mood.key as MoodKey)}
+            />
           );
         })}
       </View>

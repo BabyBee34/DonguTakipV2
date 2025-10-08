@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ViewProps, ViewStyle } from 'react-native';
+import { View, ViewProps, ViewStyle, Platform } from 'react-native';
 import { themeColors, spacing } from '../theme';
 
 interface SectionCardProps extends ViewProps {
@@ -16,14 +16,16 @@ export default function SectionCard({ variant = 'default', ...props }: SectionCa
       style={[
         {
           backgroundColor: themeColors.white,
-          borderRadius: isCompact ? 16 : 20,
+          borderRadius: 20,
           padding: spacing(2),
           marginBottom: spacing(2),
-          shadowColor: '#FFB6C1',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: isCompact ? 0.08 : 0.15,
-          shadowRadius: isCompact ? 8 : 12,
-          elevation: isCompact ? 2 : 4,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: Platform.OS === 'ios' ? 0.12 : 0,
+          shadowRadius: 12,
+          elevation: Platform.OS === 'android' ? 8 : 0,
+          borderWidth: 1,
+          borderColor: 'rgba(255, 182, 212, 0.35)',
         },
         props.style,
       ]}
