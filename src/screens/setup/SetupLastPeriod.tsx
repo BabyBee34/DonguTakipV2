@@ -9,7 +9,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../store';
 import { setPrefs } from '../../store/slices/prefsSlice';
 import { isValidISODate, isDateWithinRange } from '../../utils/validation';
-import Icon from '../../components/Icon';
+import { CalendarBlank } from 'phosphor-react-native';
 
 export default function SetupLastPeriod({ navigation }: any) {
   const { colors, typography, borderRadius, gradients, spacing } = useTheme();
@@ -86,7 +86,7 @@ export default function SetupLastPeriod({ navigation }: any) {
             <Text style={[styles.dateText, { color: date ? '#333' : '#999' }]}>
               {date ? formatDate(date) : t('setup.lastPeriod.selectDate')}
             </Text>
-            <Icon name="event" size={24} color="#FF99CC" />
+            <CalendarBlank size={24} color="#FF99CC" />
           </TouchableOpacity>
           
           {/* Help Button */}
