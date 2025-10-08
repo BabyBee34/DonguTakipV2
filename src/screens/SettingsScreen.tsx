@@ -58,7 +58,8 @@ export default function SettingsScreen() {
   const prefs = useSelector((state: RootState) => state.prefs);
   const notificationSettings = useSelector((state: RootState) => state.notification);
   const settings = useSelector((state: RootState) => state.settings);
-  const entireState = useSelector((state: RootState) => state);
+  const logs = useSelector((state: RootState) => state.logs);
+  const periods = useSelector((state: RootState) => state.periods);
 
   // Local states
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -191,6 +192,14 @@ export default function SettingsScreen() {
   const handleExportData = useCallback(async () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const entireState: RootState = {
+                prefs,
+        notification: notificationSettings,
+        settings,
+        logs,
+                periods,
+        app: { isOnboardingComplete: true },
+      };
       const fileUri = await exportDataToFile(entireState);
       
       if (await Sharing.isAvailableAsync()) {
@@ -207,7 +216,7 @@ export default function SettingsScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setToast({ message: 'Dışa aktarım başarısız', type: 'error' });
     }
-  }, [entireState]);
+  }, [prefs, notificationSettings, settings, logs, periods]);
 
   const handleImportData = useCallback(async () => {
     try {
@@ -223,7 +232,15 @@ export default function SettingsScreen() {
         
         if (importResult.success && importResult.data) {
           // Verileri birleştir
-          const mergedData = mergeImportedData(entireState, importResult.data);
+          const currentState: RootState = {
+            prefs,
+            notification: notificationSettings,
+            settings,
+            logs,
+            periods,
+            app: { isOnboardingComplete: true },
+          };
+          const mergedData = mergeImportedData(currentState, importResult.data);
           
           // Store'u güncelle
           if (mergedData.prefs) dispatch(setPrefs(mergedData.prefs as any));
@@ -245,7 +262,7 @@ export default function SettingsScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setToast({ message: error.message || 'İçe aktarım başarısız', type: 'error' });
     }
-  }, [entireState, dispatch]);
+  }, [prefs, notificationSettings, settings, logs, periods, dispatch]);
 
   const handleDeleteAllData = useCallback(() => {
     setShowDeleteConfirm(true);
