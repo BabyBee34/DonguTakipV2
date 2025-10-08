@@ -10,9 +10,9 @@ export default function OnbReminders() {
   const { t } = useTranslation();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const float1 = useRef(new Animated.Value(0)).current;
-  const float2 = useRef(new Animated.Value(0)).current;
-  const float3 = useRef(new Animated.Value(0)).current;
+  const scale1 = useRef(new Animated.Value(0)).current;
+  const scale2 = useRef(new Animated.Value(0)).current;
+  const scale3 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Fade in
@@ -38,37 +38,40 @@ export default function OnbReminders() {
       ])
     ).start();
 
-    // Floating animations with different patterns
-    const floatAnimation = (anim: Animated.Value, delay: number, duration: number) => {
+    // Scale animations for emojis with staggered delays (200ms apart)
+    const scaleAnimation = (anim: Animated.Value, delay: number) => {
       Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
           Animated.timing(anim, {
-            toValue: -25,
-            duration: duration,
+            toValue: 1,
+            duration: 2000,
             useNativeDriver: true,
           }),
           Animated.timing(anim, {
             toValue: 0,
-            duration: duration,
+            duration: 2000,
             useNativeDriver: true,
           }),
         ])
       ).start();
     };
 
-    floatAnimation(float1, 0, 4000);
-    floatAnimation(float2, 500, 5000);
-    floatAnimation(float3, 1000, 6000);
+    scaleAnimation(scale1, 0);
+    scaleAnimation(scale2, 200);
+    scaleAnimation(scale3, 400);
   }, []);
 
-  const floatTransform = (anim: Animated.Value, scale: number = 1.05) => ({
+  const scaleTransform = (anim: Animated.Value) => ({
+    opacity: anim.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [0.5, 1, 0.5],
+    }),
     transform: [
-      { translateY: anim },
       {
         scale: anim.interpolate({
-          inputRange: [-25, 0],
-          outputRange: [scale, 1],
+          inputRange: [0, 0.5, 1],
+          outputRange: [0.9, 1.1, 0.9],
         }),
       },
     ],
@@ -82,8 +85,8 @@ export default function OnbReminders() {
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
         {/* Heart SVG with pulse */}
         <View style={styles.heartContainer}>
-          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-            <Svg width={256} height={256} viewBox="0 0 200 200">
+          <Animated.View style={{ transform: [{ scale: pulseAnim }], opacity: 0.95 }}>
+            <Svg width={200} height={200} viewBox="0 0 200 200">
               <Defs>
                 <SvgLinearGradient id="heartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                   <Stop offset="0%" stopColor="#FFB6C1" stopOpacity="1" />
@@ -97,25 +100,25 @@ export default function OnbReminders() {
             </Svg>
           </Animated.View>
 
-          {/* Floating emojis */}
-          <Animated.Text style={[styles.floatingEmoji, styles.emoji1, floatTransform(float1)]}>
+          {/* Floating emojis with scale animation */}
+          <Animated.Text style={[styles.floatingEmoji, styles.emoji1, scaleTransform(scale1)]}>
             🍫
           </Animated.Text>
-          <Animated.Text style={[styles.floatingEmoji, styles.emoji2, floatTransform(float2)]}>
+          <Animated.Text style={[styles.floatingEmoji, styles.emoji2, scaleTransform(scale2)]}>
             💧
           </Animated.Text>
-          <Animated.Text style={[styles.floatingEmoji, styles.emoji3, floatTransform(float3, 1.08)]}>
+          <Animated.Text style={[styles.floatingEmoji, styles.emoji3, scaleTransform(scale3)]}>
             🌙
           </Animated.Text>
         </View>
 
         {/* Title */}
-        <Text style={[styles.title, { color: colors.ink }]}>
+        <Text style={styles.title}>
           {t('onboarding.reminders.title')}
         </Text>
 
         {/* Subtitle */}
-        <Text style={[styles.subtitle, { color: colors.inkSoft }]}>
+        <Text style={styles.subtitle}>
           {t('onboarding.reminders.description')}
         </Text>
       </Animated.View>
@@ -138,16 +141,15 @@ const styles = StyleSheet.create({
   },
   heartContainer: {
     position: 'relative',
-    marginBottom: 48,
-    width: 256,
-    height: 256,
+    marginBottom: 40,
+    width: 200,
+    height: 200,
     justifyContent: 'center',
     alignItems: 'center',
   },
   floatingEmoji: {
     position: 'absolute',
     fontSize: 36,
-    opacity: 0.8,
   },
   emoji1: {
     top: '15%',
@@ -162,16 +164,19 @@ const styles = StyleSheet.create({
     left: '20%',
   },
   title: {
-    fontSize: 34,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 16,
-    lineHeight: 42,
+    marginBottom: 8,
+    lineHeight: 30,
+    color: '#333',
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 16,
     textAlign: 'center',
-    lineHeight: 26,
-    maxWidth: 340,
+    lineHeight: 24,
+    maxWidth: 300,
+    color: '#666',
+    marginTop: 8,
   },
 });

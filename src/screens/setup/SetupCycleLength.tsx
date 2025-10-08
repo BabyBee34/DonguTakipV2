@@ -1,5 +1,5 @@
-﻿import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+﻿import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useDispatch } from 'react-redux';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,6 +17,24 @@ export default function SetupCycleLength({ navigation, route }: any) {
   const { lastPeriodStart, avgPeriodDays } = route.params || {};
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const slideAnim = useRef(new Animated.Value(100)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+
+  useEffect(() => {
+    // Slide from right to left animation
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const handleBack = () => {
     navigation.goBack();
@@ -43,7 +61,7 @@ export default function SetupCycleLength({ navigation, route }: any) {
 
   return (
     <LinearGradient
-      colors={gradients.setup}
+      colors={gradients.setup3}
       style={styles.container}
     >
       {/* Back Button */}
@@ -53,30 +71,29 @@ export default function SetupCycleLength({ navigation, route }: any) {
         accessibilityRole="button"
         accessibilityLabel="Geri"
       >
-        <Text style={[styles.backButtonText, { color: colors.ink }]}>
+        <Text style={styles.backButtonText}>
           ← Geri
         </Text>
       </TouchableOpacity>
 
-      <View style={styles.content}>
-        {/* Rotating Circle Icon */}
-        <View style={styles.iconContainer}>
-          <View style={[styles.rotatingCircle, { borderColor: colors.primary + '30' }]}>
-            <Text style={[styles.daysNumber, { color: colors.primary }]}>
-              {days}
-            </Text>
-          </View>
-        </View>
-
+      <Animated.View style={[styles.content, { transform: [{ translateX: slideAnim }] }]}>
         {/* Title */}
-        <Text style={[styles.title, { color: colors.ink }]}>
-          Döngü süreni seç 🔄
+        <Text style={styles.title}>
+          {t('setup.cycleLength.title')}
         </Text>
 
         {/* Subtitle */}
-        <Text style={[styles.subtitle, { color: colors.inkSoft }]}>
-          Genellikle döngün kaç gün sürüyor?{'\n'}(Ortalama: 28 gün)
+        <Text style={styles.subtitle}>
+          {t('setup.cycleLength.description')}
         </Text>
+
+        {/* Days Display Balloon with Animation */}
+        <Animated.View style={[styles.daysDisplay, { transform: [{ scale: scaleAnim }] }]}>
+          <Text style={styles.daysNumber}>
+            {days}
+          </Text>
+          <Text style={styles.daysLabel}>gün</Text>
+        </Animated.View>
 
         {/* Slider */}
         <View style={styles.sliderContainer}>
@@ -86,21 +103,21 @@ export default function SetupCycleLength({ navigation, route }: any) {
             step={1}
             value={days}
             onValueChange={(v: any) => setDays(clampNumber(Math.round(v), 21, 35))}
-            minimumTrackTintColor={colors.primary}
-            maximumTrackTintColor={colors.primary + '30'}
-            thumbTintColor={colors.primary}
+            minimumTrackTintColor="#C8A8FF"
+            maximumTrackTintColor="#F4D9FF"
+            thumbTintColor="#A44DFF"
             style={styles.slider}
           />
           <View style={styles.sliderLabels}>
-            <Text style={[styles.sliderLabel, { color: colors.inkSoft }]}>
+            <Text style={styles.sliderLabel}>
               21 gün
             </Text>
-            <Text style={[styles.sliderLabel, { color: colors.inkSoft }]}>
+            <Text style={styles.sliderLabel}>
               35 gün
             </Text>
           </View>
         </View>
-      </View>
+      </Animated.View>
 
       {/* Bottom Section */}
       <View style={[styles.bottomSection, { paddingBottom: Math.max(24, insets.bottom + 24) }]}>
@@ -130,10 +147,10 @@ export default function SetupCycleLength({ navigation, route }: any) {
           accessibilityRole="button"
           accessibilityLabel={t('common.done')}
           accessibilityHint={t('common.start')}
-          style={styles.buttonWrapper}
+          style={{ width: '85%', alignSelf: 'center' }}
         >
           <LinearGradient
-            colors={gradients.setupButton}
+            colors={gradients.setupButton3}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.completeButton}
@@ -158,43 +175,50 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#333',
   },
   content: {
     flex: 1,
     paddingHorizontal: 24,
     justifyContent: 'center',
   },
-  iconContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  rotatingCircle: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    borderWidth: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  daysNumber: {
-    fontSize: 64,
-    fontWeight: '700',
-  },
   title: {
-    fontSize: 30,
+    fontSize: 22,
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 12,
-    lineHeight: 38,
+    lineHeight: 30,
+    color: '#333',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     textAlign: 'center',
     marginBottom: 48,
-    lineHeight: 24,
+    lineHeight: 22,
     maxWidth: 320,
     alignSelf: 'center',
+    color: '#777',
+  },
+  daysDisplay: {
+    alignItems: 'center',
+    marginBottom: 32,
+    alignSelf: 'center',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    justifyContent: 'center',
+    backgroundColor: '#F4D9FF',
+  },
+  daysNumber: {
+    fontSize: 38,
+    fontWeight: '700',
+    color: '#A44DFF',
+  },
+  daysLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 4,
+    color: '#777',
   },
   sliderContainer: {
     marginBottom: 24,
@@ -212,6 +236,7 @@ const styles = StyleSheet.create({
   sliderLabel: {
     fontSize: 13,
     fontWeight: '500',
+    color: '#777',
   },
   bottomSection: {
     paddingHorizontal: 24,
@@ -234,16 +259,9 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
   },
-  buttonWrapper: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 4,
-  },
   completeButton: {
     height: 56,
-    borderRadius: 16,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },

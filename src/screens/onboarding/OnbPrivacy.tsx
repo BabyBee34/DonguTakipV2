@@ -9,11 +9,12 @@ export default function OnbPrivacy() {
   const { colors, gradients } = useTheme();
   const { t } = useTranslation();
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const lockAnim = useRef(new Animated.Value(1)).current;
-  const float1 = useRef(new Animated.Value(0)).current;
-  const float2 = useRef(new Animated.Value(0)).current;
-  const float3 = useRef(new Animated.Value(0)).current;
-  const float4 = useRef(new Animated.Value(0)).current;
+  const lockScaleAnim = useRef(new Animated.Value(0)).current;
+  const lockPulseAnim = useRef(new Animated.Value(1)).current;
+  const flicker1 = useRef(new Animated.Value(0.5)).current;
+  const flicker2 = useRef(new Animated.Value(0.5)).current;
+  const flicker3 = useRef(new Animated.Value(0.5)).current;
+  const flicker4 = useRef(new Animated.Value(0.5)).current;
 
   useEffect(() => {
     // Fade in
@@ -23,61 +24,52 @@ export default function OnbPrivacy() {
       useNativeDriver: true,
     }).start();
 
-    // Lock animation with rotation and scale
+    // Scale-in animation for lock (initial)
+    Animated.timing(lockScaleAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+
+    // Lock pulse animation (continuous)
     Animated.loop(
       Animated.sequence([
-        Animated.parallel([
-          Animated.timing(lockAnim, {
-            toValue: 1.05,
-            duration: 750,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.parallel([
-          Animated.timing(lockAnim, {
-            toValue: 1.1,
-            duration: 750,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.parallel([
-          Animated.timing(lockAnim, {
-            toValue: 1.05,
-            duration: 750,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.timing(lockAnim, {
+        Animated.timing(lockPulseAnim, {
+          toValue: 1.05,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(lockPulseAnim, {
           toValue: 1,
-          duration: 750,
+          duration: 1000,
           useNativeDriver: true,
         }),
       ])
     ).start();
 
-    // Floating sparkles/flowers
-    const floatAnimation = (anim: Animated.Value, delay: number) => {
+    // Opacity flicker animations for sparkles/flowers
+    const flickerAnimation = (anim: Animated.Value, delay: number) => {
       Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
           Animated.timing(anim, {
-            toValue: -20,
-            duration: 3000,
+            toValue: 1,
+            duration: 1500,
             useNativeDriver: true,
           }),
           Animated.timing(anim, {
-            toValue: 0,
-            duration: 3000,
+            toValue: 0.3,
+            duration: 1500,
             useNativeDriver: true,
           }),
         ])
       ).start();
     };
 
-    floatAnimation(float1, 0);
-    floatAnimation(float2, 500);
-    floatAnimation(float3, 1000);
-    floatAnimation(float4, 1500);
+    flickerAnimation(flicker1, 0);
+    flickerAnimation(flicker2, 300);
+    flickerAnimation(flicker3, 600);
+    flickerAnimation(flicker4, 900);
   }, []);
 
   return (
@@ -86,28 +78,34 @@ export default function OnbPrivacy() {
       style={styles.container}
     >
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-        {/* Floating elements */}
-        <Animated.Text style={[styles.floatEmoji, styles.float1, { transform: [{ translateY: float1 }] }]}>
+        {/* Flickering sparkles/flowers */}
+        <Animated.Text style={[styles.floatEmoji, styles.float1, { opacity: flicker1 }]}>
           🌸
         </Animated.Text>
-        <Animated.Text style={[styles.floatEmoji, styles.float2, { transform: [{ translateY: float2 }] }]}>
+        <Animated.Text style={[styles.floatEmoji, styles.float2, { opacity: flicker2 }]}>
           ✨
         </Animated.Text>
-        <Animated.Text style={[styles.floatEmoji, styles.float3, { transform: [{ translateY: float3 }] }]}>
+        <Animated.Text style={[styles.floatEmoji, styles.float3, { opacity: flicker3 }]}>
           🌸
         </Animated.Text>
-        <Animated.Text style={[styles.floatEmoji, styles.float4, { transform: [{ translateY: float4 }] }]}>
+        <Animated.Text style={[styles.floatEmoji, styles.float4, { opacity: flicker4 }]}>
           ✨
         </Animated.Text>
 
-        {/* Lock Icon with animation */}
+        {/* Lock Icon with scale-in animation */}
         <View style={styles.lockContainer}>
           <Animated.View
             style={{
-              transform: [{ scale: lockAnim }],
+              transform: [
+                { scale: lockScaleAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.5, 1],
+                })},
+                { scale: lockPulseAnim }
+              ],
             }}
           >
-            <Svg width={192} height={192} viewBox="0 0 20 20">
+            <Svg width={160} height={160} viewBox="0 0 20 20">
               <Path
                 d="M10 2a4 4 0 00-4 4v2H4a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2v-6a2 2 0 00-2-2h-2V6a4 4 0 00-4-4zm-2 4V6a2 2 0 114 0v2H8z"
                 fill="#FFFFFF"
@@ -117,10 +115,10 @@ export default function OnbPrivacy() {
             </Svg>
             
             {/* Heart overlay */}
-            <Svg width={48} height={48} viewBox="0 0 20 20" style={styles.heartOverlay}>
+            <Svg width={40} height={40} viewBox="0 0 20 20" style={styles.heartOverlay}>
               <Path
                 d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"
-                fill="#F472B6"
+                fill="#FF66B2"
                 fillRule="evenodd"
                 clipRule="evenodd"
               />
@@ -129,12 +127,12 @@ export default function OnbPrivacy() {
         </View>
 
         {/* Title */}
-        <Text style={[styles.title, { color: colors.ink }]}>
+        <Text style={styles.title}>
           {t('onboarding.privacy.title')}
         </Text>
 
         {/* Subtitle */}
-        <Text style={[styles.subtitle, { color: colors.inkSoft }]}>
+        <Text style={styles.subtitle}>
           {t('onboarding.privacy.description')}
         </Text>
       </Animated.View>
@@ -157,9 +155,9 @@ const styles = StyleSheet.create({
   },
   lockContainer: {
     position: 'relative',
-    marginBottom: 48,
-    width: 192,
-    height: 192,
+    marginBottom: 40,
+    width: 160,
+    height: 160,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -167,12 +165,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '55%',
     left: '50%',
-    transform: [{ translateX: -24 }, { translateY: -24 }],
+    transform: [{ translateX: -20 }, { translateY: -20 }],
   },
   floatEmoji: {
     position: 'absolute',
     fontSize: 28,
-    opacity: 0.5,
   },
   float1: {
     top: '10%',
@@ -191,16 +188,19 @@ const styles = StyleSheet.create({
     right: '20%',
   },
   title: {
-    fontSize: 28,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 16,
-    lineHeight: 36,
+    marginBottom: 6,
+    lineHeight: 30,
+    color: '#333',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     textAlign: 'center',
-    lineHeight: 24,
-    maxWidth: 320,
+    lineHeight: 22,
+    maxWidth: 300,
+    color: '#666',
+    marginTop: 6,
   },
 });

@@ -1,5 +1,5 @@
-﻿import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
+﻿import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, useWindowDimensions, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -10,6 +10,15 @@ import { getPhaseMotivation, getPhaseInfo } from '../services/tipsService';
 import { toISO, getTodayISO } from '../utils/date';
 import { useTheme } from '../theme/ThemeProvider';
 import Modal from '../components/Modal';
+import SectionCard from '../components/SectionCard';
+import GradientButton from '../components/GradientButton';
+import CalendarGrid from '../components/CalendarGrid';
+import CycleLegendCard from '../components/CycleLegendCard';
+import MoodPicker, { moodLine, type Mood } from '../components/MoodPicker';
+import { AI_ENABLED, getDailySmartTipPlaceholder, getInsightsPlaceholder, getMotivationPlaceholder } from '../services/aiPlaceholders';
+import { trackMoodForAI } from '../services/aiHooks';
+import { useConfirm } from '../utils/confirm';
+import { themeColors, spacing as themeSpacing, brand } from '../theme';
 // @ts-ignore
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
@@ -24,10 +33,40 @@ export default function CalendarScreen({ navigation }: any) {
   const periods = useSelector((state: RootState) => state.periods);
   const logs = useSelector((state: RootState) => state.logs);
   const insets = useSafeAreaInsets();
+  const { confirm, ConfirmPortal } = useConfirm();
   
   const [currentDate, setCurrentDate] = useState(new Date());
   const [phaseModalVisible, setPhaseModalVisible] = useState(false);
+  const [moodOpen, setMoodOpen] = useState(false);
+  const [mood, setMood] = useState<Mood | null>(null);
   const { width } = useWindowDimensions();
+  const compact = width < 370; // Küçük ekranlar için kompakt mod
+  
+  // Animasyonlar
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+  useEffect(() => {
+    // Ekran yüklenirken fade-in + slide-up animasyonu
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   // Aktif adet kontrolü
   const activePeriod = periods.find(p => !p.end);
@@ -92,9 +131,15 @@ export default function CalendarScreen({ navigation }: any) {
   };
 
   // Adet başlat/bitir
-  const handlePeriodToggle = () => {
+  const handlePeriodToggle = async () => {
     if (activePeriod) {
-      // Adet bitir
+      // Adet bitir - onay iste
+      const ok = await confirm(
+        'Adet Bitirilsin mi? 🌸',
+        'Bugünü adet bitişi olarak kaydedeceksin.'
+      );
+      if (!ok) return;
+
       const today = getTodayISO();
       const start = new Date(activePeriod.start + 'T12:00:00');
       const end = new Date(today + 'T12:00:00');
@@ -106,7 +151,13 @@ export default function CalendarScreen({ navigation }: any) {
         periodLengthDays,
       }));
     } else {
-      // Adet başlat
+      // Adet başlat - onay iste
+      const ok = await confirm(
+        'Adet Başlatılsın mı? 🌸',
+        'Bugünü adet başlangıcı olarak işaretleyeceksin.'
+      );
+      if (!ok) return;
+
       const today = getTodayISO();
       dispatch(addPeriod({
         id: uuidv4(),
@@ -115,11 +166,53 @@ export default function CalendarScreen({ navigation }: any) {
     }
   };
 
-  // Motivasyon mesajı
+  // Motivasyon mesajı & AI placeholders
   const todayPrediction = predictions.find(p => p.isToday);
-  const motivationMessage = todayPrediction 
-    ? getPhaseMotivation(todayPrediction.phase)
-    : t('calendar.subtitle');
+  const motivationMessage = getMotivationPlaceholder();
+  const insights = useMemo(() => getInsightsPlaceholder(), []);
+  const smartTip = getDailySmartTipPlaceholder();
+
+  // Mood-based öneri metni
+  const moodCopy: Record<Mood, string> = {
+    harika: 'Harika enerji! Bugün planına sevdiğin bir aktivite ekle ✨',
+    iyi: 'Güzel gidiyor. Mini bir yürüyüş iyi gelir 🚶‍♀️',
+    idare: 'Kendine nazik ol; küçük molalar ver ☕',
+    yorgun: 'Dinlenmek hak. Suyu ihmal etme 💧',
+    agrili: 'Sıcak kompres ve hafif esneme deneyebilirsin 🌿',
+  };
+
+  // Calendar Grid formatına dönüştür
+  const gridDays = useMemo(() => {
+    return calendarDays.map((day, idx) => {
+      const dayISO = toISO(day);
+      const prediction = predictions.find(p => p.date === dayISO);
+      
+      let kind: 'adet' | 'fertil' | 'ovu' | 'tahmini' | 'today' | 'none' = 'none';
+      
+      if (prediction) {
+        if (prediction.isMenstrual) {
+          kind = 'adet';
+        } else if (prediction.isPredictedMenstrual) {
+          kind = 'tahmini';
+        } else if (prediction.isOvulation) {
+          kind = 'ovu';
+        } else if (prediction.isFertile) {
+          kind = 'fertil';
+        }
+        
+        if (prediction.isToday) {
+          kind = 'today';
+        }
+      }
+      
+      return {
+        key: `day-${idx}`,
+        label: day.getDate().toString(),
+        kind,
+        onPress: () => navigation.navigate('DailyLog', { date: dayISO }),
+      };
+    });
+  }, [calendarDays, predictions, navigation]);
 
   // Ay adı (locale'e göre)
   const monthYear = currentDate.toLocaleDateString(i18n.language === 'tr' ? 'tr-TR' : 'en-US', {
@@ -128,239 +221,234 @@ export default function CalendarScreen({ navigation }: any) {
   });
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: insets.top, paddingBottom: Math.max(spacing.xl, insets.bottom + spacing.xl) }}>
-      <LinearGradient
-        colors={gradients.background}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xl }}
-      >
-        {/* Header - Glassmorphism */}
-        <View style={{ 
-          borderRadius: 20, 
-          padding: spacing.lg, 
-          backgroundColor: colors.glassBackground,
-          borderWidth: 1,
-          borderColor: colors.glassBorder,
-          shadowColor: colors.primary,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.1,
-          shadowRadius: 16,
-          elevation: 4,
-        }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 32, fontWeight: '700', color: colors.ink }}>Merhaba 🌸</Text>
-              <Text style={{ color: colors.inkSoft, marginTop: 4, fontSize: 15 }}>Bugün nasılsın?</Text>
+    <>
+      <Animated.View style={{ 
+        flex: 1, 
+        opacity: fadeAnim,
+        transform: [{ translateY: slideAnim }]
+      }}>
+        <LinearGradient
+          colors={['#FFF6FB', '#FFE6F5']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={{ flex: 1 }}
+        >
+        <ScrollView 
+          style={{ flex: 1 }} 
+          contentContainerStyle={{ 
+            paddingTop: insets.top + 10, 
+            paddingBottom: Math.max(80, insets.bottom + 80),
+            paddingHorizontal: 20
+          }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Karşılama Alanı */}
+          <SectionCard style={{ padding: compact ? themeSpacing(1.5) : themeSpacing(2) }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <TouchableOpacity 
+                style={{ flex: 1 }}
+                onPress={() => setMoodOpen(true)}
+                accessibilityLabel="Bugün nasılsın?"
+                accessibilityRole="button"
+              >
+                <Text style={{ fontSize: 24, fontWeight: '700', color: '#333' }}>
+                  Merhaba 🌸
+                </Text>
+                <Text style={{ color: '#6B7280', marginTop: 4, fontSize: 16 }}>
+                  {mood ? moodLine(mood) : 'Tatlı bir gün olsun!'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                accessibilityLabel="Profil"
+                accessibilityRole="button"
+                style={{ 
+                  width: 40, 
+                  height: 40, 
+                  borderRadius: 20, 
+                  backgroundColor: themeColors.rose, 
+                  borderWidth: 2, 
+                  borderColor: themeColors.pink,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={{ fontSize: 18 }}>👤</Text>
+              </TouchableOpacity>
             </View>
-            <View style={{ 
-              width: 48, 
-              height: 48, 
-              borderRadius: 24, 
-              backgroundColor: colors.glassBackgroundStrong, 
-              borderWidth: 2, 
-              borderColor: colors.primary + '4D',
-              ...shadows.card,
-            }} />
-          </View>
-        </View>
+          </SectionCard>
 
-        {/* Takvim - Modern Card */}
-        <View style={{ 
-          marginTop: spacing.lg, 
-          borderRadius: 20, 
-          backgroundColor: colors.glassBackground, 
-          padding: spacing.lg,
-          borderWidth: 1,
-          borderColor: colors.glassBackgroundStrong,
-          ...shadows.card,
-        }}>
-          {/* Ay navigasyonu */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.xs }}>
-            <TouchableOpacity 
-              onPress={goToPrevMonth} 
-              style={{ padding: spacing.sm, borderRadius: 9999 }}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.previous')}
-            >
-              <Text style={{ fontSize: 18, color: colors.inkSoft }}>‹</Text>
-            </TouchableOpacity>
-            <Text style={{ fontWeight: '600', fontSize: 16, color: colors.ink }}>{monthYear}</Text>
-            <TouchableOpacity 
-              onPress={goToNextMonth} 
-              style={{ padding: spacing.sm, borderRadius: 9999 }}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.next')}
-            >
-              <Text style={{ fontSize: 18, color: colors.inkSoft }}>›</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Gün başlıkları */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm }}>
-            {[t('calendar.weekdays.monday'), t('calendar.weekdays.tuesday'), t('calendar.weekdays.wednesday'), t('calendar.weekdays.thursday'), t('calendar.weekdays.friday'), t('calendar.weekdays.saturday'), t('calendar.weekdays.sunday')].map((k, idx) => (
-              <Text key={idx} style={{ color: colors.inkSoft, fontSize: 11, width: (width - 32 - 24) / 7, textAlign: 'center' }}>{k}</Text>
+          {/* Özet Widget'ları */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, gap: 8 }}>
+            {insights.map((item, idx) => (
+              <SectionCard 
+                key={idx}
+                variant="compact"
+                style={{ 
+                  flex: 1, 
+                  paddingVertical: 10,
+                  paddingHorizontal: compact ? themeSpacing(1) : themeSpacing(1.5),
+                  marginBottom: 0 
+                }}
+              >
+                <Text style={{ 
+                  fontSize: compact ? 10 : 11, 
+                  color: themeColors.sub, 
+                  marginBottom: 4 
+                }}>
+                  {item.label}
+                </Text>
+                <Text style={{ 
+                  fontSize: compact ? 15 : 16, 
+                  fontWeight: '700', 
+                  color: themeColors.text 
+                }}>
+                  {item.value}
+                </Text>
+                <Text style={{ 
+                  fontSize: compact ? 9 : 10, 
+                  color: themeColors.sub, 
+                  marginTop: 2 
+                }}>
+                  {item.sub}
+                </Text>
+              </SectionCard>
             ))}
           </View>
 
-          {/* Takvim günleri */}
-          <View style={{ flexWrap: 'wrap', flexDirection: 'row', marginTop: 8 }}>
-            {calendarDays.map((day, idx) => {
-              const dayISO = toISO(day);
-              const prediction = predictions.find(p => p.date === dayISO);
-              const isCurrentMonth = day.getMonth() === currentDate.getMonth();
-              
-              let bgColor = 'transparent';
-              let textColor = isCurrentMonth ? colors.ink : colors.inkLight;
-              let icon = '';
-              
-              if (prediction) {
-                if (prediction.isMenstrual) {
-                  bgColor = colors.menstrualRed;
-                  textColor = colors.textOnDark;
-                  icon = '🌸';
-                } else if (prediction.isPredictedMenstrual) {
-                  bgColor = colors.predictedPink;
-                  icon = '🌷';
-                } else if (prediction.isOvulation) {
-                  bgColor = colors.ovulationPurple;
-                  textColor = colors.textOnDark;
-                  icon = '💜';
-                } else if (prediction.isFertile) {
-                  bgColor = colors.fertileGreen;
-                  icon = '🌱';
-                }
-                
-                // Bugün için özel işaretleme
-                if (prediction.isToday) {
-                  icon = '🌟';
-                }
-              }
+          {/* Takvim Kartı */}
+          <SectionCard style={{ paddingVertical: themeSpacing(1.5), paddingHorizontal: 12, paddingBottom: 12, marginBottom: 8 }}>
+            <CalendarGrid 
+              days={gridDays}
+              header={{
+                monthLabel: monthYear,
+                onPrev: goToPrevMonth,
+                onNext: goToNextMonth,
+              }}
+            />
+          </SectionCard>
 
-              return (
-                <View key={idx} style={{ width: (width - 32) / 7, paddingVertical: spacing.xs, alignItems: 'center' }}>
-                  <TouchableOpacity 
-                    onPress={() => navigation.navigate('DailyLog', { date: dayISO })}
-                    style={{
-                      width: cellSize,
-                      height: cellSize,
-                      borderRadius: 12,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: bgColor,
-                      borderWidth: prediction?.isToday ? 2 : 0,
-                      borderColor: prediction?.isToday ? colors.todayMint : 'transparent',
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${day.getDate()} ${monthYear}${prediction ? `, ${prediction.isMenstrual ? t('calendar.legend.menstrual') : prediction.isPredictedMenstrual ? t('calendar.legend.predicted') : prediction.isOvulation ? t('calendar.legend.ovulation') : prediction.isFertile ? t('calendar.legend.fertile') : ''}` : ''}`}
-                  >
-                    <Text style={{ fontWeight: '600', color: textColor }}>{day.getDate()}</Text>
-                    {icon && (
-                      <Text style={{ position: 'absolute', top: 2, right: 4, fontSize: 12 }}>{icon}</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
+          {/* Cycle Legend Card (3+2 simetrik grid) */}
+          <CycleLegendCard />
+
+          {/* Hızlı İşlemler */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, marginBottom: themeSpacing(2), gap: 12 }}>
+            <GradientButton 
+              title={activePeriod ? t('calendar.endPeriod') : t('calendar.startPeriod')}
+              left={<Text style={{ fontSize: 16 }}>🌸</Text>}
+              onPress={handlePeriodToggle}
+              colorsPair={activePeriod ? ['#FFB3B3', '#FF8A8A'] : [brand.pinkFrom, brand.pinkTo]}
+              textColor={activePeriod ? '#8B0000' : brand.pinkText}
+              style={{ width: '48%' }}
+            />
+            <GradientButton 
+              title={t('calendar.addDaily')}
+              left={<Text style={{ fontSize: 16 }}>📝</Text>}
+              onPress={() => navigation.navigate('DailyLog')}
+              colorsPair={[brand.lilacFrom, brand.lilacTo]}
+              textColor="#fff"
+              style={{ width: '48%' }}
+            />
           </View>
-        </View>
 
-        {/* Legend */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: spacing.md }} contentContainerStyle={{ paddingHorizontal: spacing.xs }}>
-          {[
-            { label: t('calendar.legend.menstrual'), bg: colors.menstrualRed, color: colors.textOnDark },
-            { label: t('calendar.legend.predicted'), bg: colors.predictedPink, color: colors.ink },
-            { label: t('calendar.legend.fertile'), bg: colors.fertileGreen, color: colors.ink },
-            { label: t('calendar.legend.ovulation'), bg: colors.ovulationPurple, color: colors.textOnDark },
-            { label: t('calendar.legend.today'), bg: colors.bg, color: colors.ink, ring: colors.todayMint },
-          ].map((c, i) => (
-            <View key={i} style={{ paddingVertical: spacing.sm, paddingHorizontal: spacing.md, backgroundColor: c.bg, borderRadius: borderRadius.chip, marginRight: spacing.sm, borderWidth: c.ring ? 2 : 0, borderColor: c.ring || 'transparent' }}>
-              <Text style={{ color: c.color, fontWeight: '600', fontSize: 12 }}>{c.label}</Text>
+          {/* Mini Öneri (AI Placeholder) */}
+          <SectionCard style={{ backgroundColor: themeColors.rose, padding: themeSpacing(2) }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: themeSpacing(1) }}>
+              <Text style={{ fontWeight: '700', color: themeColors.text, fontSize: 15 }}>
+                Bugün için öneri
+              </Text>
+              {!AI_ENABLED && (
+                <View style={{ 
+                  backgroundColor: themeColors.pink, 
+                  borderRadius: 12, 
+                  paddingHorizontal: 8, 
+                  paddingVertical: 4 
+                }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#FFF' }}>YAKINDA</Text>
+                </View>
+              )}
             </View>
-          ))}
+            <Text style={{ color: themeColors.text, fontSize: 14, lineHeight: 20 }}>
+              {mood ? moodCopy[mood] : smartTip.body}
+            </Text>
+          </SectionCard>
+
+          {/* Faz Bilgi Kartı */}
+          {todayPrediction && (
+            <TouchableOpacity 
+              onPress={() => setPhaseModalVisible(true)}
+              style={{ 
+                borderRadius: 20, 
+                marginBottom: themeSpacing(2), 
+                overflow: 'hidden',
+                shadowColor: '#FFB6C1',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.15,
+                shadowRadius: 8,
+                elevation: 3,
+              }}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={['#FFB6F2', '#CBA6FF']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ padding: themeSpacing(2) }}
+              >
+                <Text style={{ fontWeight: '700', marginBottom: 8, color: '#FFF', fontSize: 18 }}>
+                  {getPhaseInfo(todayPrediction.phase).title}
+                </Text>
+                <Text style={{ color: '#FFF', fontSize: 14, opacity: 0.9, lineHeight: 20 }}>
+                  {getPhaseInfo(todayPrediction.phase).description}
+                </Text>
+                <Text style={{ color: '#FFF', fontSize: 12, marginTop: themeSpacing(1), fontWeight: '600', opacity: 0.9, textDecorationLine: 'underline' }}>
+                  Detaylı bilgi için tıkla →
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
+          {/* Hatırlatıcı CTA */}
+          <SectionCard style={{ alignItems: 'center', padding: compact ? themeSpacing(1.5) : themeSpacing(2) }}>
+            <Text style={{ 
+              fontWeight: '600', 
+              color: themeColors.text, 
+              textAlign: 'center', 
+              fontSize: compact ? 14 : 15,
+              marginBottom: themeSpacing(1.5),
+              lineHeight: 22,
+              paddingHorizontal: 16
+            }}>
+              {motivationMessage}
+            </Text>
+            <GradientButton 
+              title="🔔 Hatırlatıcıları Ayarla" 
+              onPress={() => navigation.navigate('Settings')}
+              style={{ width: '100%', maxWidth: 280 }}
+            />
+          </SectionCard>
+
+          {/* Gizlilik Rozeti */}
+          <View style={{ alignSelf: 'center', marginTop: themeSpacing(1), marginBottom: themeSpacing(2) }}>
+            <Text style={{ color: themeColors.sub, fontSize: 11, textAlign: 'center' }}>
+              🔒 Verilerin sadece cihazında — AI henüz bağlı değil
+            </Text>
+          </View>
         </ScrollView>
-
-        {/* Hızlı Aksiyonlar - Modern Gradient Buttons */}
-        <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md }}>
-          <TouchableOpacity 
-            onPress={handlePeriodToggle}
-            activeOpacity={0.8}
-            style={{ flex: 1 }}
-            accessibilityRole="button"
-            accessibilityLabel={activePeriod ? t('calendar.endPeriod') : t('calendar.startPeriod')}
-          >
-            <LinearGradient
-              colors={activePeriod ? [colors.danger, colors.menstrualRed] : [colors.success, colors.fertileGreen]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={{ 
-                height: 56, 
-                borderRadius: 16, 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                ...shadows.button,
-              }}
-            >
-              <Text style={{ color: colors.textOnDark, fontWeight: '700', fontSize: 15 }}>
-                {activePeriod ? '⏹ ' + t('calendar.endPeriod') : '▶ ' + t('calendar.startPeriod')}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={() => navigation.navigate('DailyLog')}
-            activeOpacity={0.8}
-            style={{ flex: 1 }}
-            accessibilityRole="button"
-            accessibilityLabel={t('calendar.addDaily')}
-          >
-            <LinearGradient
-              colors={gradients.button2}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={{ 
-                height: 56, 
-                borderRadius: 16, 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                ...shadows.button,
-              }}
-            >
-              <Text style={{ color: colors.textOnDark, fontWeight: '700', fontSize: 15 }}>✎ {t('calendar.addDaily')}</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-
-        {/* Faz Bilgi Kartı - Gradient */}
-        {todayPrediction && (
-          <TouchableOpacity 
-            onPress={() => setPhaseModalVisible(true)}
-            style={{ borderRadius: borderRadius.card, marginBottom: spacing.md, ...shadows.card, overflow: 'hidden' }}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={[colors.primary, colors.lilac]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{ padding: spacing.lg }}
-            >
-              <Text style={{ fontWeight: '700', marginBottom: spacing.sm, color: colors.textOnPrimary }}>
-                {getPhaseInfo(todayPrediction.phase).title}
-              </Text>
-              <Text style={{ color: colors.textOnPrimary, fontSize: 14, opacity: 0.95 }}>
-                {getPhaseInfo(todayPrediction.phase).description}
-              </Text>
-              <Text style={{ color: colors.textOnPrimary, fontSize: 12, marginTop: spacing.sm, fontWeight: '600', opacity: 0.9 }}>
-                {t('calendar.phase.moreInfo')}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
-
-        {/* Motivasyon Kartı */}
-        <View style={{ borderRadius: borderRadius.card, padding: spacing.lg, backgroundColor: colors.bg, ...shadows.card }}>
-          <Text style={{ textAlign: 'center', color: colors.ink, fontWeight: '500' }}>{motivationMessage}</Text>
-        </View>
       </LinearGradient>
+    </Animated.View>
+
+      {/* Mood Picker */}
+      <MoodPicker
+        visible={moodOpen}
+        onClose={() => setMoodOpen(false)}
+        onSelect={(m) => {
+          setMood(m);
+          trackMoodForAI(m); // AI hook - şimdilik log
+        }}
+      />
+
+      {/* Confirm Modal Portal */}
+      {ConfirmPortal}
 
       {/* Faz Detay Modal */}
       {todayPrediction && (
@@ -447,6 +535,6 @@ export default function CalendarScreen({ navigation }: any) {
           })()}
         </Modal>
       )}
-    </ScrollView>
+    </>
   );
 }

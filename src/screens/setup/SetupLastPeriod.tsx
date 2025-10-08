@@ -1,5 +1,5 @@
 ﻿import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -54,42 +54,51 @@ export default function SetupLastPeriod({ navigation }: any) {
       style={styles.container}
     >
       <View style={styles.content}>
-        {/* Animated Calendar Icon */}
+        {/* Flower Icon */}
         <View style={styles.iconContainer}>
-          <View style={styles.iconCircle}>
-            <Text style={styles.emoji}>🌸</Text>
-          </View>
+          <Text style={styles.emoji}>🌸</Text>
         </View>
 
         {/* Title */}
-        <Text style={[styles.title, { color: colors.ink }]}>
-          Son adet başlangıcını seç 🌸
+        <Text style={styles.title}>
+          {t('setup.lastPeriod.title')}
         </Text>
 
         {/* Subtitle */}
-        <Text style={[styles.subtitle, { color: colors.inkSoft }]}>
-          Döngünü hesaplayabilmem için son adetinin başladığı günü seç.
+        <Text style={styles.subtitle}>
+          {t('setup.lastPeriod.description')}
         </Text>
 
-        {/* Date Picker Button */}
-        <TouchableOpacity
-          onPress={openPicker}
-          style={[
-            styles.datePickerButton,
-            {
-              borderColor: date ? colors.primary : colors.primary + '30',
-              backgroundColor: colors.bg + 'CC',
-            },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Tarih seçici"
-          accessibilityHint="Son adet başlangıç tarihini seç"
-        >
-          <Text style={[styles.dateText, { color: date ? colors.ink : colors.inkSoft }]}>
-            {date ? formatDate(date) : t('setup.lastPeriod.selectDate')}
-          </Text>
-          <Icon name="calendar-outline" size={24} color={colors.primary} style={{ marginLeft: spacing.sm }} />
-        </TouchableOpacity>
+        {/* Date Picker Button with Help */}
+        <View style={{ width: '85%', alignSelf: 'center' }}>
+          <TouchableOpacity
+            onPress={openPicker}
+            style={styles.datePickerButton}
+            accessibilityRole="button"
+            accessibilityLabel="Tarih seçici"
+            accessibilityHint="Son adet başlangıç tarihini seç"
+          >
+            <Text style={[styles.dateText, { color: date ? '#333' : '#999' }]}>
+              {date ? formatDate(date) : t('setup.lastPeriod.selectDate')}
+            </Text>
+            <Icon name="calendar-outline" size={24} color="#FF99CC" />
+          </TouchableOpacity>
+          
+          {/* Help Button */}
+          <TouchableOpacity 
+            style={styles.helpButton}
+            onPress={() => {
+              Alert.alert(
+                t('setup.lastPeriod.helpTitle'),
+                t('setup.lastPeriod.helpMessage')
+              );
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Yardım"
+          >
+            <Text style={styles.helpText}>?</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Bottom Section */}
@@ -100,12 +109,10 @@ export default function SetupLastPeriod({ navigation }: any) {
             paddingHorizontal: spacing.lg, 
             paddingVertical: spacing.md, 
             marginBottom: spacing.lg,
-            backgroundColor: colors.warning + '20',
-            borderLeftWidth: 4,
-            borderLeftColor: colors.warning,
+            backgroundColor: '#FFE6EC',
             borderRadius: borderRadius.card,
           }}>
-            <Text style={{ fontSize: 14, color: colors.ink }}>
+            <Text style={{ fontSize: 14, color: '#FF3366', textAlign: 'center' }}>
               ℹ️ {t('setup.lastPeriod.helperText')}
             </Text>
           </View>
@@ -137,11 +144,11 @@ export default function SetupLastPeriod({ navigation }: any) {
           disabled={!canNext}
           accessibilityRole="button"
           accessibilityLabel={t('common.continue')}
-          style={[styles.buttonWrapper, { backgroundColor: canNext ? 'transparent' : colors.bgGray }]}
+          style={{ width: '85%', alignSelf: 'center' }}
         >
           {canNext ? (
             <LinearGradient
-              colors={gradients.setupButton}
+              colors={['#FF66B2', '#FF8FC8']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.nextButton}
@@ -149,8 +156,8 @@ export default function SetupLastPeriod({ navigation }: any) {
               <Text style={styles.buttonText}>{t('common.continue')}</Text>
             </LinearGradient>
           ) : (
-            <View style={styles.nextButton}>
-              <Text style={[styles.buttonText, { color: colors.inkLight }]}>{t('common.continue')}</Text>
+            <View style={[styles.nextButton, { backgroundColor: '#E0E0E0' }]}>
+              <Text style={[styles.buttonText, { color: '#999' }]}>{t('common.continue')}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -174,43 +181,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-  },
   emoji: {
-    fontSize: 64,
+    fontSize: 120,
   },
   title: {
-    fontSize: 30,
+    fontSize: 22,
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 12,
-    lineHeight: 38,
+    marginBottom: 6,
+    lineHeight: 30,
+    color: '#333',
   },
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
-    marginBottom: 48,
+    marginTop: 6,
+    marginBottom: 40,
     lineHeight: 24,
     maxWidth: 320,
+    color: '#666',
   },
   datePickerButton: {
     width: '100%',
-    maxWidth: 340,
-    height: 56,
-    borderWidth: 2,
-    borderRadius: 16,
-    paddingHorizontal: 20,
+    borderWidth: 1.5,
+    borderColor: '#FF99CC',
+    borderRadius: 14,
+    backgroundColor: '#FFF',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -222,8 +220,25 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
     flex: 1,
+  },
+  helpButton: {
+    position: 'absolute',
+    right: -32,
+    top: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FF99CC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helpText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   calendarIcon: {
     fontSize: 24,
@@ -249,16 +264,9 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
   },
-  buttonWrapper: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 4,
-  },
   nextButton: {
     height: 56,
-    borderRadius: 16,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },

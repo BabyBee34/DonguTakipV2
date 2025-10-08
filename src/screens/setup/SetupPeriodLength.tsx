@@ -1,5 +1,5 @@
-﻿import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+﻿import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Slider from '@react-native-community/slider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,6 +13,16 @@ export default function SetupPeriodLength({ navigation, route }: any) {
   const { lastPeriodStart } = route.params || {};
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+
+  useEffect(() => {
+    // Balloon scale-in animation
+    Animated.timing(scaleAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   const handleBack = () => {
     navigation.goBack();
@@ -20,7 +30,7 @@ export default function SetupPeriodLength({ navigation, route }: any) {
 
   return (
     <LinearGradient
-      colors={gradients.setup}
+      colors={gradients.setup2}
       style={styles.container}
     >
       {/* Back Button */}
@@ -30,36 +40,29 @@ export default function SetupPeriodLength({ navigation, route }: any) {
         accessibilityRole="button"
         accessibilityLabel="Geri"
       >
-        <Text style={[styles.backButtonText, { color: colors.ink }]}>
+        <Text style={styles.backButtonText}>
           ← Geri
         </Text>
       </TouchableOpacity>
 
       <View style={styles.content}>
-        {/* Animated Flower with Glow */}
-        <View style={styles.iconContainer}>
-          <View style={[styles.glowCircle, { backgroundColor: colors.primary + '20' }]}>
-            <Text style={styles.emoji}>🌸</Text>
-          </View>
-        </View>
-
         {/* Title */}
-        <Text style={[styles.title, { color: colors.ink }]}>
-          Adet süreni seç ⏳
+        <Text style={styles.title}>
+          {t('setup.periodLength.title')}
         </Text>
 
         {/* Subtitle */}
-        <Text style={[styles.subtitle, { color: colors.inkSoft }]}>
-          Genellikle adet günlerin kaç gün sürüyor? (Ortalama: 5 gün)
+        <Text style={styles.subtitle}>
+          {t('setup.periodLength.description')}
         </Text>
 
-        {/* Days Display Circle */}
-        <View style={[styles.daysDisplay, { borderColor: colors.primary }]}>
-          <Text style={[styles.daysNumber, { color: colors.primary }]}>
+        {/* Days Display Balloon with Animation */}
+        <Animated.View style={[styles.daysDisplay, { transform: [{ scale: scaleAnim }] }]}>
+          <Text style={styles.daysNumber}>
             {days}
           </Text>
-          <Text style={[styles.daysLabel, { color: colors.inkSoft }]}>GÜN</Text>
-        </View>
+          <Text style={styles.daysLabel}>gün</Text>
+        </Animated.View>
 
         {/* Slider with labels */}
         <View style={styles.sliderContainer}>
@@ -69,14 +72,14 @@ export default function SetupPeriodLength({ navigation, route }: any) {
             step={1}
             value={days}
             onValueChange={(v: any) => setDays(clampNumber(Math.round(v), 3, 10))}
-            minimumTrackTintColor={colors.primary}
-            maximumTrackTintColor={colors.primary + '30'}
-            thumbTintColor={colors.primary}
+            minimumTrackTintColor="#FF99CC"
+            maximumTrackTintColor="#FFD6EB"
+            thumbTintColor="#FF66B2"
             style={styles.slider}
           />
           <View style={styles.sliderLabels}>
-            <Text style={[styles.sliderLabel, { color: colors.inkSoft }]}>3 gün</Text>
-            <Text style={[styles.sliderLabel, { color: colors.inkSoft }]}>10 gün</Text>
+            <Text style={styles.sliderLabel}>3 gün</Text>
+            <Text style={styles.sliderLabel}>10 gün</Text>
           </View>
         </View>
       </View>
@@ -113,10 +116,10 @@ export default function SetupPeriodLength({ navigation, route }: any) {
           }
           accessibilityRole="button"
           accessibilityLabel={t('common.continue')}
-          style={styles.buttonWrapper}
+          style={{ width: '85%', alignSelf: 'center' }}
         >
           <LinearGradient
-            colors={gradients.setupButton}
+            colors={['#FF66B2', '#FF8FC8']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.nextButton}
@@ -141,40 +144,29 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#333',
   },
   content: {
     flex: 1,
     paddingHorizontal: 24,
     justifyContent: 'center',
   },
-  iconContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  glowCircle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emoji: {
-    fontSize: 72,
-  },
   title: {
-    fontSize: 30,
+    fontSize: 22,
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 12,
-    lineHeight: 38,
+    lineHeight: 30,
+    color: '#333',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     textAlign: 'center',
     marginBottom: 48,
-    lineHeight: 24,
+    lineHeight: 22,
     maxWidth: 320,
     alignSelf: 'center',
+    color: '#777',
   },
   daysDisplay: {
     alignItems: 'center',
@@ -183,18 +175,19 @@ const styles = StyleSheet.create({
     width: 140,
     height: 140,
     borderRadius: 70,
-    borderWidth: 3,
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: '#FFD6EB',
   },
   daysNumber: {
-    fontSize: 56,
+    fontSize: 38,
     fontWeight: '700',
+    color: '#FF1493',
   },
   daysLabel: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
     marginTop: 4,
+    color: '#777',
   },
   sliderContainer: {
     marginBottom: 24,
@@ -212,6 +205,7 @@ const styles = StyleSheet.create({
   sliderLabel: {
     fontSize: 13,
     fontWeight: '500',
+    color: '#777',
   },
   bottomSection: {
     paddingHorizontal: 24,
@@ -234,16 +228,9 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
   },
-  buttonWrapper: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 4,
-  },
   nextButton: {
     height: 56,
-    borderRadius: 16,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },

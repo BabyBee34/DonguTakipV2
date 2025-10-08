@@ -138,7 +138,7 @@ export default function OnbWelcome() {
 
         {/* Flower SVG with breath animation */}
         <Animated.View style={[styles.flowerContainer, { transform: [{ scale: breathAnim }] }]}>
-          <Svg width={280} height={280} viewBox="0 0 200 200">
+          <Svg width={180} height={180} viewBox="0 0 200 200">
             <Defs>
               <RadialGradient id="petalGradient" cx="50%" cy="50%" fx="50%" fy="50%" r="50%">
                 <Stop offset="0%" stopColor="#FBCFE8" stopOpacity="1" />
@@ -163,12 +163,12 @@ export default function OnbWelcome() {
         </Animated.View>
 
         {/* Title */}
-        <Text style={[styles.title, { color: colors.ink }]}>
+        <Text style={styles.title}>
           {t('onboarding.welcome.title')}
         </Text>
 
         {/* Subtitle */}
-        <Text style={[styles.subtitle, { color: colors.inkSoft }]}>
+        <Text style={styles.subtitle}>
           {t('onboarding.welcome.description')}
         </Text>
       </Animated.View>
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   flowerContainer: {
-    marginBottom: 48,
+    marginBottom: 40,
     position: 'relative',
   },
   sparkle: {
@@ -233,16 +233,18 @@ const styles = StyleSheet.create({
     left: '40%',
   },
   title: {
-    fontSize: 34,
+    fontSize: 22,
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 16,
-    lineHeight: 42,
+    lineHeight: 30,
+    color: '#333',
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 16,
     textAlign: 'center',
-    lineHeight: 26,
+    lineHeight: 24,
     maxWidth: 300,
+    color: '#666',
   },
 });

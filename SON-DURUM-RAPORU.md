@@ -273,3 +273,4 @@ Tüm kritik özellikler implement edildi, test coverage yeterli, ve uygulama pro
 
 
 
+

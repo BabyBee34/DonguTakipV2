@@ -53,7 +53,9 @@
       "title": "Son adet başlangıcını seç 🌸",
       "description": "Döngünü hesaplayabilmem için son adetinin başladığı günü seç.",
       "selectDate": "Tarih seç",
-      "helperText": "Lütfen devam etmek için bir tarih seçin"
+      "helperText": "Lütfen devam etmek için bir tarih seçin",
+      "helpTitle": "Yardım",
+      "helpMessage": "Son adet başlangıç tarihinizi doğru bir şekilde seçmeniz, döngü tahminlerinin daha isabetli olmasını sağlar. Eğer tam tarihini hatırlamıyorsanız, yaklaşık bir tarih seçebilirsiniz."
     },
     "periodLength": {
       "title": "Adet süreni seç ⏳",

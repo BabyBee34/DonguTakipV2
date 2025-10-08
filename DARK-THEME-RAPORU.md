@@ -187,3 +187,4 @@ textOnLight: '#1C1C1E',     // Açık arka plan üzerindeki text (dark theme)
 
 
 
+

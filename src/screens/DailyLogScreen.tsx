@@ -174,7 +174,7 @@ export default function DailyLogScreen({ route, navigation }: any) {
         <View style={{ 
           paddingHorizontal: spacing.xl, 
           paddingTop: spacing.md,
-          paddingBottom: Math.max(spacing.md, insets.bottom),
+          paddingBottom: Math.max(80, insets.bottom + 80),
           backgroundColor: colors.bg,
           borderTopWidth: 1,
           borderTopColor: colors.bgGray,

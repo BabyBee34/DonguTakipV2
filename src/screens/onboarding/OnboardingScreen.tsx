@@ -1,5 +1,6 @@
 ﻿import React, { useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, FlatList, useWindowDimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useDispatch } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OnbWelcome from './OnbWelcome';
@@ -34,6 +35,12 @@ export default function OnboardingScreen({ navigation }: any) {
     }
   };
 
+  // Her ekran için gradient son rengi
+  const getBottomBackgroundColor = () => {
+    const bottomColors = ['#FAD8EF', '#FFEFF9', '#F9E1FF'];
+    return bottomColors[index];
+  };
+
   const skip = () => {
     dispatch(setOnboardingCompleted(true));
     // Setup ekranına yönlendir
@@ -44,9 +51,9 @@ export default function OnboardingScreen({ navigation }: any) {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <View style={{ flex: 1, backgroundColor: 'transparent' }}>
       <TouchableOpacity onPress={skip} style={{ position: 'absolute', right: 16, top: Math.max(16, insets.top), zIndex: 10 }}>
-        <Text style={{ color: colors.inkLight }}>{t('common.skip')}</Text>
+        <Text style={{ color: '#666', fontWeight: '600' }}>{t('common.skip')}</Text>
       </TouchableOpacity>
 
       <FlatList
@@ -67,7 +74,12 @@ export default function OnboardingScreen({ navigation }: any) {
         }}
       />
 
-      <View style={{ padding: 16, paddingBottom: Math.max(16, insets.bottom) }}>
+      <View style={{ 
+        padding: 16, 
+        paddingBottom: Math.max(16, insets.bottom), 
+        alignItems: 'center',
+        backgroundColor: getBottomBackgroundColor(),
+      }}>
         <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 12 }}>
           {PAGES.map((_, i) => (
             <View
@@ -80,24 +92,34 @@ export default function OnboardingScreen({ navigation }: any) {
                 height: i === index ? 12 : 10,
                 borderRadius: i === index ? 6 : 5,
                 marginHorizontal: 6,
-                backgroundColor: i === index ? colors.primary : colors.bgGray,
+                backgroundColor: i === index ? '#FF66B2' : '#F5C6E0',
               }}
             />
           ))}
         </View>
         <TouchableOpacity
           onPress={goNext}
+          activeOpacity={0.8}
           style={{
-            height: 56,
-            borderRadius: 28,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: colors.primary,
+            width: '90%',
+            alignSelf: 'center',
           }}
         >
-          <Text style={{ color: colors.textOnPrimary, fontSize: 16, fontWeight: '600' }}>
-            {index < PAGES.length - 1 ? t('common.continue') : t('common.start')}
-          </Text>
+          <LinearGradient
+            colors={['#FF66B2', '#FF8FC8']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{
+              paddingVertical: 16,
+              borderRadius: 24,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>
+              {index < PAGES.length - 1 ? t('common.continue') : t('common.start')}
+            </Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
     </View>

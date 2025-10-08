@@ -62,7 +62,7 @@ export default function ReportsScreen({ navigation }: any) {
   }
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: spacing.xl, paddingBottom: spacing.xxl }}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: spacing.xl, paddingBottom: 100 }}>
       <LinearGradient colors={[colors.bgSoft, colors.bg]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: borderRadius.card, padding: spacing.lg, marginBottom: spacing.xl, ...shadows.card }}>
         <Text style={{ fontSize: 28, fontWeight: '700', color: colors.ink }}>{t('reports.title')}</Text>
       </LinearGradient>
