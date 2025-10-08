@@ -62,7 +62,10 @@ console.log('Component imports:', {
   PermissionBanner: typeof PermissionBanner,
   PINSetupModal: typeof PINSetupModal,
   Toast: typeof Toast,
+  RNDateTimePickerModal: typeof RNDateTimePickerModal,
+  'RNDateTimePickerModal.default': typeof RNDateTimePickerModal?.default,
   DateTimePickerModal: typeof DateTimePickerModal,
+  'DateTimePickerModal is': DateTimePickerModal,
 });
 
 export default function SettingsScreen() {
