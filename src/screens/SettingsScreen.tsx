@@ -195,7 +195,7 @@ export default function SettingsScreen() {
   }, []);
 
   const formatReminderTime = () => {
-    const { hour, minute } = notificationSettings.reminderTime;
+    const { hour, minute } = notificationSettings.reminderTime || { hour: 9, minute: 0 };
     return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
   };
 
@@ -302,8 +302,8 @@ export default function SettingsScreen() {
           <SettingRow
             icon={<Info size={22} color="#E94FA1" />}
             title="Yaklaşan Adet Bildirimi"
-            description={`Adet başlamadan ${notificationSettings.upcomingPeriodDays} gün önce haber ver`}
-            value={`${notificationSettings.upcomingPeriodDays} gün`}
+            description={`Adet başlamadan ${notificationSettings.upcomingPeriodDays || 2} gün önce haber ver`}
+            value={`${notificationSettings.upcomingPeriodDays || 2} gün`}
             onPress={() => setShowDaysPicker(true)}
             disabled={!notificationSettings.enabled}
             disabledText={!notificationSettings.enabled ? 'Bildirimler kapalı' : undefined}
@@ -455,7 +455,7 @@ export default function SettingsScreen() {
         mode="time"
         onConfirm={handleReminderTimeChange}
         onCancel={() => setShowTimePicker(false)}
-        date={new Date(0, 0, 0, notificationSettings.reminderTime.hour, notificationSettings.reminderTime.minute)}
+        date={new Date(0, 0, 0, notificationSettings.reminderTime?.hour || 9, notificationSettings.reminderTime?.minute || 0)}
         is24Hour={true}
         locale="tr_TR"
       />
@@ -490,14 +490,14 @@ export default function SettingsScreen() {
                   paddingVertical: 16,
                   paddingHorizontal: 20,
                   borderRadius: 12,
-                  backgroundColor: notificationSettings.upcomingPeriodDays === days ? '#FFE8F5' : '#F9FAFB',
+                  backgroundColor: (notificationSettings.upcomingPeriodDays || 2) === days ? '#FFE8F5' : '#F9FAFB',
                   marginBottom: 8,
                 }}
               >
                 <Text style={{
                   fontSize: 15,
-                  fontWeight: notificationSettings.upcomingPeriodDays === days ? '600' : '500',
-                  color: notificationSettings.upcomingPeriodDays === days ? '#E94FA1' : '#6B7280',
+                  fontWeight: (notificationSettings.upcomingPeriodDays || 2) === days ? '600' : '500',
+                  color: (notificationSettings.upcomingPeriodDays || 2) === days ? '#E94FA1' : '#6B7280',
                   textAlign: 'center',
                 }}>
                   {days} gün önce
