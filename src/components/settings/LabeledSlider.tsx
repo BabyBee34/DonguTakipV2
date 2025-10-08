@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Slider from '@react-native-community/slider';
 import * as Haptics from 'expo-haptics';
 
@@ -15,6 +15,10 @@ interface LabeledSliderProps {
   accessibilityLabel?: string;
 }
 
+interface LabeledSliderPropsExtended extends LabeledSliderProps {
+  onValuePress?: () => void;
+}
+
 export default function LabeledSlider({
   label,
   description,
@@ -25,7 +29,8 @@ export default function LabeledSlider({
   unit,
   onValueChange,
   accessibilityLabel,
-}: LabeledSliderProps) {
+  onValuePress,
+}: LabeledSliderPropsExtended) {
   const handleValueChange = (newValue: number) => {
     if (newValue !== value) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -33,15 +38,27 @@ export default function LabeledSlider({
     }
   };
 
+  const handleValuePress = () => {
+    if (onValuePress) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      onValuePress();
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.label}>{label}</Text>
-        <View style={styles.valueBadge}>
+        <TouchableOpacity
+          onPress={handleValuePress}
+          disabled={!onValuePress}
+          style={styles.valueBadge}
+          activeOpacity={0.7}
+        >
           <Text style={styles.valueText}>
             {value} {unit}
           </Text>
-        </View>
+        </TouchableOpacity>
       </View>
       
       {description && (
