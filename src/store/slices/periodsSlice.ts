@@ -33,5 +33,8 @@ export const {
   clearAllPeriods 
 } = periodsSlice.actions;
 
+// Alias for consistency
+export const clearPeriods = clearAllPeriods;
+
 export default periodsSlice.reducer;
 

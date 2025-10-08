@@ -1,5 +1,5 @@
-﻿import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
+﻿import React, { useState, useCallback, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Alert, Linking, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +7,8 @@ import { RootState } from '../store';
 import { setPrefs } from '../store/slices/prefsSlice';
 import { setNotificationSettings, setPermissionGranted } from '../store/slices/notificationSlice';
 import { setSettings } from '../store/slices/settingsSlice';
+import { clearLogs } from '../store/slices/logsSlice';
+import { clearPeriods } from '../store/slices/periodsSlice';
 import { useTheme } from '../theme/ThemeProvider';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
@@ -14,10 +16,12 @@ import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
+import * as Application from 'expo-application';
 import { 
-  Gear, 
   Bell, 
   Moon, 
+  Sun,
+  Smartphone,
   Lock, 
   Download, 
   Upload, 
@@ -25,7 +29,6 @@ import {
   Info,
   Calendar,
   Clock,
-  Palette,
   Globe,
   Shield,
 } from 'phosphor-react-native';
@@ -33,17 +36,21 @@ import SettingSection from '../components/settings/SettingSection';
 import SettingRow from '../components/settings/SettingRow';
 import LabeledSlider from '../components/settings/LabeledSlider';
 import DangerZoneCard from '../components/settings/DangerZoneCard';
+import NumericInputModal from '../components/settings/NumericInputModal';
+import SegmentedControl from '../components/settings/SegmentedControl';
+import PermissionBanner from '../components/settings/PermissionBanner';
 import Toast from '../components/Toast';
 import { 
   requestNotificationPermission, 
   scheduleNotifications, 
   cancelAllScheduledNotificationsAsync,
+  checkNotificationPermission,
 } from '../services/notificationService';
-import { exportDataToJSON, importDataFromJSON, deleteAllData } from '../services/storage';
+import { exportDataToFile, importDataFromFile, mergeImportedData } from '../services/backupService';
 
 export default function SettingsScreen() {
-  const { colors, spacing, borderRadius, shadows, isDark, toggleTheme } = useTheme();
-  const { t, i18n } = useTranslation();
+  const { colors, spacing, borderRadius, shadows, isDark, toggleTheme, setThemeMode } = useTheme();
+  const { t } = useTranslation();
   const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
@@ -51,13 +58,32 @@ export default function SettingsScreen() {
   const prefs = useSelector((state: RootState) => state.prefs);
   const notificationSettings = useSelector((state: RootState) => state.notification);
   const settings = useSelector((state: RootState) => state.settings);
-  
+  const entireState = useSelector((state: RootState) => state);
+
   // Local states
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDaysPicker, setShowDaysPicker] = useState(false);
-  const [showFrequencySheet, setShowFrequencySheet] = useState(false);
+  const [showPeriodInputModal, setShowPeriodInputModal] = useState(false);
+  const [showCycleInputModal, setShowCycleInputModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // İzin kontrolü
+  useEffect(() => {
+    checkPermissionStatus();
+  }, [notificationSettings.enabled]);
+
+  const checkPermissionStatus = async () => {
+    if (notificationSettings.enabled) {
+      const hasPermission = await checkNotificationPermission();
+      setPermissionDenied(!hasPermission);
+    } else {
+      setPermissionDenied(false);
+    }
+  };
 
   // Handlers
   const handlePeriodLengthChange = useCallback((value: number) => {
@@ -71,6 +97,7 @@ export default function SettingsScreen() {
   const handleLastPeriodDateChange = useCallback((date: Date) => {
     dispatch(setPrefs({ ...prefs, lastPeriodStartDate: date.toISOString() }));
     setShowDatePicker(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setToast({ message: 'Son adet tarihi güncellendi', type: 'success' });
   }, [dispatch, prefs]);
 
@@ -81,122 +108,192 @@ export default function SettingsScreen() {
         dispatch(setNotificationSettings({ ...notificationSettings, enabled: true }));
         dispatch(setPermissionGranted(true));
         await scheduleNotifications();
+        setPermissionDenied(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setToast({ message: 'Bildirimler açıldı', type: 'success' });
       } else {
+        setPermissionDenied(true);
+        dispatch(setNotificationSettings({ ...notificationSettings, enabled: false }));
         Alert.alert(
           'İzin Gerekli',
           'Bildirimleri açmak için uygulama ayarlarından izin vermelisiniz.',
           [{ text: 'Tamam' }]
         );
       }
-          } else {
+    } else {
       dispatch(setNotificationSettings({ ...notificationSettings, enabled: false }));
       await cancelAllScheduledNotificationsAsync();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setToast({ message: 'Bildirimler kapatıldı', type: 'info' });
     }
   }, [dispatch, notificationSettings]);
 
-  const handleReminderTimeChange = useCallback((date: Date) => {
+  const handleReminderTimeChange = useCallback(async (date: Date) => {
     const hours = date.getHours();
     const minutes = date.getMinutes();
+    
+    // Önce eski planları iptal et
+    await cancelAllScheduledNotificationsAsync();
+    
+    // Yeni ayarı kaydet
     dispatch(setNotificationSettings({ 
       ...notificationSettings, 
       reminderTime: { hour: hours, minute: minutes } 
     }));
+    
+    // Yeni planları oluştur
+    if (notificationSettings.enabled) {
+      await scheduleNotifications();
+    }
+    
     setShowTimePicker(false);
-    setToast({ message: `Hatırlatma saati ${hours}:${minutes.toString().padStart(2, '0')} olarak ayarlandı`, type: 'success' });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setToast({ 
+      message: `Hatırlatma saati ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} olarak ayarlandı`, 
+      type: 'success' 
+    });
   }, [dispatch, notificationSettings]);
 
-  const handleUpcomingPeriodDaysChange = useCallback((days: number) => {
+  const handleUpcomingPeriodDaysChange = useCallback(async (days: number) => {
+    // Önce eski planları iptal et
+    await cancelAllScheduledNotificationsAsync();
+    
+    // Yeni ayarı kaydet
     dispatch(setNotificationSettings({ 
       ...notificationSettings, 
-      upcomingPeriodDays: days 
+      upcomingPeriodDays: days as 0 | 1 | 2 | 3 | 5 | 7
     }));
+    
+    // Yeni planları oluştur
+    if (notificationSettings.enabled && days > 0) {
+      await scheduleNotifications();
+    }
+    
     setShowDaysPicker(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setToast({ message: `${days} gün önce bildirim gönderilecek`, type: 'success' });
   }, [dispatch, notificationSettings]);
 
-  const handleThemeChange = useCallback(() => {
-    toggleTheme();
+  const handleThemeChange = useCallback((value: string) => {
+    const themeMode = value as 'system' | 'light' | 'dark';
+    dispatch(setSettings({ ...settings, theme: themeMode }));
+    setThemeMode(themeMode);
     Haptics.selectionAsync();
-    setToast({ message: `Tema: ${isDark ? 'Açık' : 'Koyu'}`, type: 'info' });
-  }, [toggleTheme, isDark]);
+    
+    const themeNames = { system: 'Sistem', light: 'Açık', dark: 'Koyu' };
+    setToast({ message: `Tema: ${themeNames[themeMode]}`, type: 'info' });
+  }, [dispatch, settings, setThemeMode]);
+
+  const handleOpenSettings = useCallback(() => {
+    Linking.openSettings();
+  }, []);
 
   const handleExportData = useCallback(async () => {
     try {
-      const fileUri = await exportDataToJSON();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const fileUri = await exportDataToFile(entireState);
+      
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(fileUri);
-        setToast({ message: 'Yedek kaydedildi', type: 'success' });
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/json',
+          dialogTitle: 'CycleMate Verileri Dışa Aktar',
+        });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setToast({ message: 'Yedek oluşturuldu', type: 'success' });
       } else {
         setToast({ message: 'Paylaşım özelliği desteklenmiyor', type: 'error' });
       }
             } catch (error) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setToast({ message: 'Dışa aktarım başarısız', type: 'error' });
     }
-  }, []);
+  }, [entireState]);
 
   const handleImportData = useCallback(async () => {
-            try {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               const result = await DocumentPicker.getDocumentAsync({
                 type: 'application/json',
                 copyToCacheDirectory: true,
               });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-              const fileUri = result.assets[0].uri;
-        const success = await importDataFromJSON(fileUri);
-        if (success) {
-          setToast({ message: 'Veriler başarıyla yüklendi', type: 'success' });
+        const fileUri = result.assets[0].uri;
+        const importResult = await importDataFromFile(fileUri);
+        
+        if (importResult.success && importResult.data) {
+          // Verileri birleştir
+          const mergedData = mergeImportedData(entireState, importResult.data);
+          
+          // Store'u güncelle
+          if (mergedData.prefs) dispatch(setPrefs(mergedData.prefs as any));
+          if (mergedData.settings) dispatch(setSettings(mergedData.settings as any));
+          if (mergedData.notification) dispatch(setNotificationSettings(mergedData.notification as any));
+          // Logs ve periods için özel action'lar gerekebilir
+          
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setToast({ 
+            message: `Veriler başarıyla yüklendi\n${importResult.stats?.journals || 0} günlük, ${importResult.stats?.cycles || 0} döngü`, 
+            type: 'success' 
+          });
         } else {
-          setToast({ message: 'Dosya formatı desteklenmiyor', type: 'error' });
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          setToast({ message: importResult.error || 'İçe aktarım başarısız', type: 'error' });
         }
       }
-            } catch (error) {
-      setToast({ message: 'İçe aktarım başarısız', type: 'error' });
+    } catch (error: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setToast({ message: error.message || 'İçe aktarım başarısız', type: 'error' });
     }
-  }, []);
+  }, [entireState, dispatch]);
 
   const handleDeleteAllData = useCallback(() => {
-    Alert.alert(
-      'Tüm Verileri Sil',
-      'Bu işlem geri alınamaz. Devam etmek istiyor musunuz?',
-      [
-        { text: 'İptal', style: 'cancel' },
-        { 
-          text: 'Devam',
-          style: 'destructive', 
-          onPress: () => {
-            Alert.prompt(
-              'Onay',
-              'Lütfen "SİL" yazarak onaylayın',
-              [
-                { text: 'İptal', style: 'cancel' },
-                {
-                  text: 'Sil',
-                  style: 'destructive',
-                  onPress: async (text) => {
-                    if (text === 'SİL') {
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                      await deleteAllData();
-                      setToast({ message: 'Tüm veriler silindi', type: 'success' });
-                    } else {
-                      setToast({ message: 'Onay metni hatalı', type: 'error' });
-                    }
-                  },
-                },
-              ],
-              'plain-text'
-            );
-          },
-        },
-      ]
-    );
+    setShowDeleteConfirm(true);
+    setDeleteConfirmText('');
   }, []);
+
+  const confirmDeleteAllData = useCallback(async () => {
+    if (deleteConfirmText === 'SİL') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      
+      // Tüm bildirimleri iptal et
+      await cancelAllScheduledNotificationsAsync();
+      
+      // Store'u temizle
+      dispatch(clearLogs());
+      dispatch(clearPeriods());
+      dispatch(setPrefs({
+        avgPeriodLengthDays: 5,
+        avgCycleLengthDays: 28,
+        lastPeriodStartDate: '',
+      }));
+      dispatch(setNotificationSettings({
+        enabled: false,
+        permissionGranted: false,
+        reminderTime: { hour: 9, minute: 0 },
+        upcomingPeriodDays: 2,
+      }));
+      
+      setShowDeleteConfirm(false);
+      setDeleteConfirmText('');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setToast({ message: 'Her şey temizlendi ✨', type: 'success' });
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setToast({ message: 'Onay metni hatalı', type: 'error' });
+    }
+  }, [deleteConfirmText, dispatch]);
 
   const formatReminderTime = () => {
     const { hour, minute } = notificationSettings.reminderTime || { hour: 9, minute: 0 };
     return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+  };
+
+  const getThemeIcon = () => {
+    const theme = settings.theme || 'system';
+    if (theme === 'light') return <Sun size={22} color="#E94FA1" weight="fill" />;
+    if (theme === 'dark') return <Moon size={22} color="#E94FA1" weight="fill" />;
+    return <Smartphone size={22} color="#E94FA1" />;
   };
 
   return (
@@ -204,7 +301,7 @@ export default function SettingsScreen() {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingTop: insets.top + 16,
+          paddingTop: insets.top + 12,
           paddingHorizontal: 16,
           paddingBottom: tabBarHeight + 24,
         }}
@@ -218,7 +315,7 @@ export default function SettingsScreen() {
           style={{
             borderRadius: 20,
             padding: 16,
-            marginBottom: 16,
+            marginBottom: 20,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.05,
@@ -226,16 +323,40 @@ export default function SettingsScreen() {
             elevation: 2,
           }}
         >
-          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#FFF' }}>
+          <Text style={{ fontSize: 20, fontWeight: '700', color: '#FFF' }}>
             Ayarlar ⚙️
           </Text>
           <Text style={{ fontSize: 14, color: '#FFF', opacity: 0.9, marginTop: 8 }}>
-            Döngü, bildirim ve görünüm tercihlerini yönet.
+            Döngü, bildirim ve görünüm tercihlerini yönet
           </Text>
         </LinearGradient>
 
-        {/* A) Döngü Tercihleri */}
-        <SettingSection title="DÖNGÜ TERCİHLERİ">
+        {/* DÖNGÜ TERCİHLERİ */}
+        <View style={{ marginTop: 20, marginBottom: 8 }}>
+          <Text style={{
+            fontSize: 13,
+            fontWeight: '600',
+            color: '#6B7280',
+            marginBottom: 8,
+            marginLeft: 4,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}>
+            DÖNGÜ TERCİHLERİ
+          </Text>
+        </View>
+
+        <View style={{
+          backgroundColor: '#FFF',
+          borderRadius: 16,
+          padding: 16,
+          marginBottom: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 8,
+          elevation: 2,
+        }}>
           <LabeledSlider
             label="Ortalama Adet Süresi"
             description="Adet kanamalarının ortalama süresi"
@@ -245,6 +366,7 @@ export default function SettingsScreen() {
             step={1}
             unit="gün"
             onValueChange={handlePeriodLengthChange}
+            onValuePress={() => setShowPeriodInputModal(true)}
             accessibilityLabel={`Ortalama Adet Süresi ${prefs.avgPeriodLengthDays} gün`}
           />
           
@@ -252,34 +374,63 @@ export default function SettingsScreen() {
           
           <LabeledSlider
             label="Ortalama Döngü Süresi"
-            description="Döngünün ortalama uzunluğu (adet başlangıcından sonrakine)"
+            description="Döngünün ortalama uzunluğu"
             value={prefs.avgCycleLengthDays}
             min={21}
             max={40}
             step={1}
             unit="gün"
             onValueChange={handleCycleLengthChange}
+            onValuePress={() => setShowCycleInputModal(true)}
             accessibilityLabel={`Ortalama Döngü Süresi ${prefs.avgCycleLengthDays} gün`}
           />
           
           <View style={{ height: 16, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }} />
           
           <SettingRow
-            icon={<Calendar size={22} color="#E94FA1" />}
+            icon={<Calendar size={20} color="#E94FA1" />}
             title="Son Adet Başlangıcı"
-            description="Tahmin doğruluğunu artırır."
+            description="Tahmin doğruluğunu artırır"
             value={prefs.lastPeriodStartDate ? new Date(prefs.lastPeriodStartDate).toLocaleDateString('tr-TR') : 'Seçilmedi'}
             onPress={() => setShowDatePicker(true)}
             isLast
             accessibilityLabel="Son Adet Başlangıcı"
             accessibilityHint="Tarih seçici açmak için dokun"
           />
-        </SettingSection>
+        </View>
 
-        {/* B) Bildirimler */}
-        <SettingSection title="BİLDİRİMLER">
+        {/* BİLDİRİMLER */}
+        <View style={{ marginTop: 20, marginBottom: 8 }}>
+          <Text style={{
+            fontSize: 13,
+            fontWeight: '600',
+            color: '#6B7280',
+            marginBottom: 8,
+            marginLeft: 4,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}>
+            BİLDİRİMLER
+          </Text>
+        </View>
+
+        {permissionDenied && (
+          <PermissionBanner onOpenSettings={handleOpenSettings} />
+        )}
+
+        <View style={{
+          backgroundColor: '#FFF',
+          borderRadius: 16,
+          padding: 16,
+          marginBottom: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 8,
+          elevation: 2,
+        }}>
           <SettingRow
-            icon={<Bell size={22} color="#E94FA1" />}
+            icon={<Bell size={20} color="#E94FA1" />}
             title="Bildirimleri Aç"
             description={notificationSettings.enabled ? 'Açık' : 'Kapalı'}
             switchValue={notificationSettings.enabled}
@@ -288,7 +439,7 @@ export default function SettingsScreen() {
           />
           
           <SettingRow
-            icon={<Clock size={22} color="#E94FA1" />}
+            icon={<Clock size={20} color="#E94FA1" />}
             title="Hatırlatma Saati"
             description="Günlük hatırlatma saati"
             value={formatReminderTime()}
@@ -300,7 +451,7 @@ export default function SettingsScreen() {
           />
           
           <SettingRow
-            icon={<Info size={22} color="#E94FA1" />}
+            icon={<Info size={20} color="#E94FA1" />}
             title="Yaklaşan Adet Bildirimi"
             description={`Adet başlamadan ${notificationSettings.upcomingPeriodDays || 2} gün önce haber ver`}
             value={`${notificationSettings.upcomingPeriodDays || 2} gün`}
@@ -311,34 +462,90 @@ export default function SettingsScreen() {
             accessibilityLabel="Yaklaşan Adet Bildirimi"
             accessibilityHint="Gün sayısı seçmek için dokun"
           />
-        </SettingSection>
+        </View>
 
-        {/* C) Görünüm */}
-        <SettingSection title="GÖRÜNÜM">
-          <SettingRow
-            icon={<Moon size={22} color="#E94FA1" />}
-            title="Tema"
-            description={isDark ? 'Koyu tema aktif' : 'Açık tema aktif'}
-            value={isDark ? 'Koyu' : 'Açık'}
-            onPress={handleThemeChange}
-            accessibilityLabel="Tema"
-            accessibilityHint="Tema değiştirmek için dokun"
-          />
+        {/* GÖRÜNÜM */}
+        <View style={{ marginTop: 20, marginBottom: 8 }}>
+              <Text style={{ 
+            fontSize: 13,
+                fontWeight: '600', 
+            color: '#6B7280',
+            marginBottom: 8,
+            marginLeft: 4,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}>
+            GÖRÜNÜM
+          </Text>
+        </View>
+
+        <View style={{
+          backgroundColor: '#FFF',
+          borderRadius: 16,
+          padding: 16,
+          marginBottom: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 8,
+          elevation: 2,
+        }}>
+          <View style={{ marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              {getThemeIcon()}
+              <Text style={{ fontSize: 15, fontWeight: '500', color: '#1F2937', marginLeft: 12 }}>
+                Tema
+              </Text>
+            </View>
+            <SegmentedControl
+              options={[
+                { value: 'system', label: 'Sistem' },
+                { value: 'light', label: 'Açık' },
+                { value: 'dark', label: 'Koyu' },
+              ]}
+              value={settings.theme || 'system'}
+              onChange={handleThemeChange}
+            />
+          </View>
           
           <SettingRow
-            icon={<Globe size={22} color="#E94FA1" />}
+            icon={<Globe size={20} color="#E94FA1" />}
             title="Dil"
-            description="Uygulama dili"
+            description="Yakında daha fazla dil"
             value="Türkçe"
             disabled
-            disabledText="Yakında eklenecek"
+            disabledText="Yakında"
             isLast
             accessibilityLabel="Dil"
           />
-        </SettingSection>
+        </View>
 
-        {/* D) Gizlilik & Güvenlik */}
-        <SettingSection title="GİZLİLİK & GÜVENLİK">
+        {/* GİZLİLİK & GÜVENLİK */}
+        <View style={{ marginTop: 20, marginBottom: 8 }}>
+            <Text style={{ 
+            fontSize: 13,
+              fontWeight: '600', 
+            color: '#6B7280',
+            marginBottom: 8,
+            marginLeft: 4,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}>
+            GİZLİLİK & GÜVENLİK
+            </Text>
+        </View>
+
+        <View style={{
+          backgroundColor: '#FFF',
+          borderRadius: 16,
+          padding: 16,
+          marginBottom: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 8,
+          elevation: 2,
+        }}>
           <View style={{
             padding: 16,
             backgroundColor: '#F0FDF4',
@@ -354,25 +561,51 @@ export default function SettingsScreen() {
               </Text>
             </View>
             <Text style={{ fontSize: 13, color: '#065F46', lineHeight: 18 }}>
-              Veriler cihazında, buluta gönderilmez. Tüm bilgileriniz yerel depolamada güvende.
+              • Veriler cihazında tutulur{'\n'}
+              • Buluta gönderilmez{'\n'}
+              • Dışa aktarım senin kontrolünde
             </Text>
           </View>
-          
+
           <SettingRow
-            icon={<Shield size={22} color="#E94FA1" />}
+            icon={<Shield size={20} color="#E94FA1" />}
             title="PIN Kilidi"
             description="Uygulama açılışında PIN iste"
             disabled
-            disabledText="Yakında eklenecek"
+            disabledText="Yakında"
             isLast
             accessibilityLabel="PIN Kilidi"
           />
-        </SettingSection>
+        </View>
 
-        {/* E) Veri Yönetimi */}
-        <SettingSection title="VERİ YÖNETİMİ">
+        {/* VERİ YÖNETİMİ */}
+        <View style={{ marginTop: 20, marginBottom: 8 }}>
+          <Text style={{
+            fontSize: 13,
+            fontWeight: '600',
+            color: '#6B7280',
+            marginBottom: 8,
+            marginLeft: 4,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}>
+            VERİ YÖNETİMİ
+          </Text>
+        </View>
+
+        <View style={{
+          backgroundColor: '#FFF',
+          borderRadius: 16,
+          padding: 16,
+          marginBottom: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 8,
+          elevation: 2,
+        }}>
           <SettingRow
-            icon={<Download size={22} color="#E94FA1" />}
+            icon={<Download size={20} color="#E94FA1" />}
             title="Verileri Dışa Aktar"
             description="JSON yedeği oluştur"
             onPress={handleExportData}
@@ -381,21 +614,21 @@ export default function SettingsScreen() {
           />
           
           <SettingRow
-            icon={<Upload size={22} color="#E94FA1" />}
+            icon={<Upload size={20} color="#E94FA1" />}
             title="Verileri İçe Aktar"
             description="JSON'dan yükle"
             onPress={handleImportData}
             isLast
             accessibilityLabel="Verileri İçe Aktar"
             accessibilityHint="Yedek dosyası yüklemek için dokun"
-          />
-        </SettingSection>
+              />
+            </View>
 
-        {/* Tehlikeli Bölge */}
-        <View style={{ marginBottom: 12 }}>
-            <Text style={{ 
+        {/* TEHLİKELİ BÖLGE */}
+        <View style={{ marginTop: 20, marginBottom: 8 }}>
+          <Text style={{
             fontSize: 13,
-              fontWeight: '600', 
+            fontWeight: '600',
             color: '#DC2626',
             marginBottom: 8,
             marginLeft: 4,
@@ -404,41 +637,67 @@ export default function SettingsScreen() {
           }}>
             TEHLİKELİ BÖLGE
           </Text>
-          <DangerZoneCard
-            title="Tüm Verileri Sil"
-            description="Adet kayıtları, günlük girişleri ve tüm ayarlarınız silinecektir. Bu işlem geri alınamaz!"
-            buttonText="Tüm Verileri Sil"
-            onPress={handleDeleteAllData}
-          />
         </View>
 
-        {/* F) Hakkında */}
-        <SettingSection title="HAKKINDA">
+        <DangerZoneCard
+          title="Tüm Verileri Sil"
+          description="Adet kayıtları, günlük girişleri ve tüm ayarlarınız silinecektir. Bu işlem geri alınamaz!"
+          buttonText="Tüm Verileri Sil"
+          onPress={handleDeleteAllData}
+        />
+
+        {/* HAKKINDA */}
+        <View style={{ marginTop: 20, marginBottom: 8 }}>
+          <Text style={{
+            fontSize: 13,
+            fontWeight: '600',
+            color: '#6B7280',
+            marginBottom: 8,
+            marginLeft: 4,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}>
+            HAKKINDA
+          </Text>
+        </View>
+
+        <View style={{
+          backgroundColor: '#FFF',
+          borderRadius: 16,
+          padding: 16,
+          marginBottom: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 8,
+          elevation: 2,
+        }}>
           <SettingRow
             title="Uygulama Versiyonu"
-            value="1.0.0"
-            accessibilityLabel="Uygulama Versiyonu 1.0.0"
+            value={Application.nativeApplicationVersion || '1.0.0'}
+            accessibilityLabel={`Uygulama Versiyonu ${Application.nativeApplicationVersion || '1.0.0'}`}
+            isLast
           />
-          
-          <View style={{
-            padding: 16,
-            backgroundColor: '#FFF7ED',
-            borderRadius: 12,
-            borderLeftWidth: 3,
-            borderLeftColor: '#F59E0B',
-            marginTop: 16,
-          }}>
-            <Text style={{ fontSize: 15, fontWeight: '600', color: '#92400E', marginBottom: 4 }}>
-              ⚕️ Tıbbi Uyarı
-            </Text>
-            <Text style={{ fontSize: 13, color: '#78350F', lineHeight: 18 }}>
-              Bu uygulama tıbbi tavsiye yerine geçmez. Sağlık sorunlarınız için mutlaka bir doktora danışın.
-              </Text>
-          </View>
-        </SettingSection>
+      </View>
+
+        <View style={{
+          padding: 16,
+          backgroundColor: '#FFF7ED',
+          borderRadius: 12,
+          borderLeftWidth: 3,
+          borderLeftColor: '#F59E0B',
+          marginBottom: 12,
+        }}>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: '#92400E', marginBottom: 4 }}>
+            ⚕️ Tıbbi Uyarı
+          </Text>
+          <Text style={{ fontSize: 13, color: '#78350F', lineHeight: 18 }}>
+            Bu uygulama tıbbi tavsiye yerine geçmez. Sağlık sorunlarınız için mutlaka bir doktora danışın.
+          </Text>
+        </View>
       </ScrollView>
 
-      {/* Date Picker */}
+      {/* Modals */}
       <DateTimePickerModal
         isVisible={showDatePicker}
         mode="date"
@@ -449,7 +708,6 @@ export default function SettingsScreen() {
         locale="tr_TR"
       />
 
-      {/* Time Picker */}
       <DateTimePickerModal
         isVisible={showTimePicker}
         mode="time"
@@ -458,6 +716,34 @@ export default function SettingsScreen() {
         date={new Date(0, 0, 0, notificationSettings.reminderTime?.hour || 9, notificationSettings.reminderTime?.minute || 0)}
         is24Hour={true}
         locale="tr_TR"
+      />
+
+      <NumericInputModal
+        visible={showPeriodInputModal}
+        title="Ortalama Adet Süresi"
+        value={prefs.avgPeriodLengthDays}
+        min={3}
+        max={10}
+        unit="gün"
+        onConfirm={(value) => {
+          handlePeriodLengthChange(value);
+          setShowPeriodInputModal(false);
+        }}
+        onCancel={() => setShowPeriodInputModal(false)}
+      />
+
+      <NumericInputModal
+        visible={showCycleInputModal}
+        title="Ortalama Döngü Süresi"
+        value={prefs.avgCycleLengthDays}
+        min={21}
+        max={40}
+        unit="gün"
+        onConfirm={(value) => {
+          handleCycleLengthChange(value);
+          setShowCycleInputModal(false);
+        }}
+        onCancel={() => setShowCycleInputModal(false)}
       />
 
       {/* Days Picker Modal */}
@@ -482,7 +768,7 @@ export default function SettingsScreen() {
             <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 16, textAlign: 'center' }}>
               Kaç gün önce bildirim?
             </Text>
-            {[1, 2, 3, 4, 5].map((days) => (
+            {[0, 1, 2, 3, 5, 7].map((days) => (
               <TouchableOpacity
                 key={days}
                 onPress={() => handleUpcomingPeriodDaysChange(days)}
@@ -500,8 +786,8 @@ export default function SettingsScreen() {
                   color: (notificationSettings.upcomingPeriodDays || 2) === days ? '#E94FA1' : '#6B7280',
                   textAlign: 'center',
                 }}>
-                  {days} gün önce
-          </Text>
+                  {days === 0 ? 'Kapalı' : `${days} gün önce`}
+                </Text>
               </TouchableOpacity>
             ))}
             <TouchableOpacity
@@ -513,6 +799,114 @@ export default function SettingsScreen() {
             >
               <Text style={{ fontSize: 15, color: '#6B7280', textAlign: 'center' }}>
                 İptal
+              </Text>
+            </TouchableOpacity>
+          </View>
+              </View>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <View style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}>
+          <View style={{
+            backgroundColor: '#FFF',
+            borderRadius: 20,
+            padding: 24,
+            width: '85%',
+            maxWidth: 340,
+          }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#DC2626', marginBottom: 12, textAlign: 'center' }}>
+              ⚠️ Dikkat
+            </Text>
+            <Text style={{ fontSize: 15, color: '#1F2937', marginBottom: 20, textAlign: 'center', lineHeight: 22 }}>
+              Tüm verileriniz kalıcı olarak silinecek. Bu işlem geri alınamaz!
+            </Text>
+            <Text style={{ fontSize: 14, color: '#6B7280', marginBottom: 16, textAlign: 'center' }}>
+              Onaylamak için <Text style={{ fontWeight: 'bold', color: '#DC2626' }}>SİL</Text> yazın:
+            </Text>
+            
+            <View style={{
+              borderWidth: 2,
+              borderColor: deleteConfirmText === 'SİL' ? '#10B981' : '#E5E7EB',
+              borderRadius: 12,
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              marginBottom: 20,
+            }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: deleteConfirmText === 'SİL' ? '#10B981' : '#1F2937',
+                textAlign: 'center',
+              }}>
+                {deleteConfirmText || '...'}
+              </Text>
+            </View>
+            
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteConfirmText('');
+                }}
+                style={{
+                  flex: 1,
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  backgroundColor: '#F3F4F6',
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '600', color: '#6B7280' }}>
+                  İptal
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                onPress={confirmDeleteAllData}
+                onLongPress={() => {
+                  // Uzun basma alternatifi
+                  if (deleteConfirmText !== 'SİL') {
+                    setDeleteConfirmText('SİL');
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  backgroundColor: deleteConfirmText === 'SİL' ? '#DC2626' : '#E5E7EB',
+                  alignItems: 'center',
+                }}
+                disabled={deleteConfirmText !== 'SİL'}
+              >
+                <Text style={{ 
+                  fontSize: 15, 
+                  fontWeight: '600', 
+                  color: deleteConfirmText === 'SİL' ? '#FFF' : '#9CA3AF' 
+                }}>
+                  Sil
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => setDeleteConfirmText(deleteConfirmText === 'SİL' ? '' : 'SİL')}
+              style={{
+                marginTop: 12,
+                paddingVertical: 8,
+              }}
+            >
+              <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center' }}>
+                Dokunarak "SİL" yazabilirsiniz
               </Text>
             </TouchableOpacity>
           </View>
