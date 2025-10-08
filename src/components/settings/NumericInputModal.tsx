@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -23,7 +23,14 @@ export default function NumericInputModal({
   onConfirm,
   onCancel,
 }: NumericInputModalProps) {
-  const [inputValue, setInputValue] = useState(value.toString());
+  const [inputValue, setInputValue] = useState((value || min).toString());
+
+  // Value değiştiğinde inputValue'yu güncelle
+  useEffect(() => {
+    if (visible) {
+      setInputValue((value || min).toString());
+    }
+  }, [visible, value, min]);
 
   const handleConfirm = () => {
     const numValue = parseInt(inputValue, 10);
@@ -32,7 +39,7 @@ export default function NumericInputModal({
       onConfirm(numValue);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setInputValue(value.toString());
+      setInputValue((value || min).toString());
     }
   };
 

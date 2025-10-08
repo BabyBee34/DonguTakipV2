@@ -1,11 +1,13 @@
 import React, { createContext, useContext, ReactNode } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
+import { setSettings } from '../store/slices/settingsSlice';
 import { lightColors } from './lightColors';
 import { darkColors } from './darkColors';
 import { typography } from './typography';
 import { spacing, borderRadius, shadows } from './spacing';
 import { lightGradients, darkGradients } from './gradients';
+import { Appearance } from 'react-native';
 
 export interface Theme {
   colors: typeof lightColors;
@@ -15,6 +17,8 @@ export interface Theme {
   shadows: typeof shadows;
   gradients: typeof lightGradients;
   isDark: boolean;
+  toggleTheme: () => void;
+  setThemeMode: (mode: 'system' | 'light' | 'dark') => void;
 }
 
 const ThemeContext = createContext<Theme | undefined>(undefined);
@@ -24,10 +28,27 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const theme = useSelector((state: RootState) => state.settings.theme);
+  const dispatch = useDispatch();
+  const settings = useSelector((state: RootState) => state.settings);
+  const themeMode = settings.theme || 'system';
 
-  const currentColors = theme === 'dark' ? darkColors : lightColors;
-  const currentGradients = theme === 'dark' ? darkGradients : lightGradients;
+  // Sistem temasını kullan
+  const systemColorScheme = Appearance.getColorScheme();
+  const effectiveTheme = themeMode === 'system' 
+    ? (systemColorScheme === 'dark' ? 'dark' : 'light')
+    : themeMode;
+
+  const currentColors = effectiveTheme === 'dark' ? darkColors : lightColors;
+  const currentGradients = effectiveTheme === 'dark' ? darkGradients : lightGradients;
+
+  const toggleTheme = () => {
+    const newTheme = effectiveTheme === 'dark' ? 'light' : 'dark';
+    dispatch(setSettings({ ...settings, theme: newTheme }));
+  };
+
+  const setThemeMode = (mode: 'system' | 'light' | 'dark') => {
+    dispatch(setSettings({ ...settings, theme: mode }));
+  };
 
   const themeValue: Theme = {
     colors: currentColors,
@@ -36,7 +57,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     borderRadius,
     shadows,
     gradients: currentGradients,
-    isDark: theme === 'dark',
+    isDark: effectiveTheme === 'dark',
+    toggleTheme,
+    setThemeMode,
   };
 
   return (
