@@ -148,7 +148,7 @@ export default function SetupLastPeriod({ navigation }: any) {
           onPress={() => {
             // Redux store'a kaydet
             if (date) {
-              dispatch(setPrefs({ ...prefs, lastPeriodStartDate: date.toISOString() }));
+              dispatch(setPrefs({ ...prefs, lastPeriodStart: date }));
             }
             navigation.navigate('SetupPeriodLength', { lastPeriodStart: date });
           }}
