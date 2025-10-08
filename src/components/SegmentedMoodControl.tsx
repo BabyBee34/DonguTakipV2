@@ -28,11 +28,7 @@ export default function SegmentedMoodControl({ selected, onSelect }: SegmentedMo
         Ruh Halim
       </Text>
       
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8 }}
-      >
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         {MOODS.map((mood) => {
           const isSelected = selected === mood.key;
           return (
@@ -46,13 +42,14 @@ export default function SegmentedMoodControl({ selected, onSelect }: SegmentedMo
               accessibilityLabel={`Ruh hali: ${mood.label}`}
               accessibilityState={{ selected: isSelected }}
               style={{
-                paddingHorizontal: 16,
+                flex: 1,
+                minWidth: 74,
+                paddingHorizontal: 12,
                 paddingVertical: 10,
                 borderRadius: 14,
                 borderWidth: 1,
                 backgroundColor: isSelected ? '#FFE1EE' : '#F7F7F8',
                 borderColor: isSelected ? '#FFB6D4' : 'transparent',
-                minWidth: 80,
                 alignItems: 'center',
               }}
             >
@@ -69,7 +66,7 @@ export default function SegmentedMoodControl({ selected, onSelect }: SegmentedMo
             </Pressable>
           );
         })}
-      </ScrollView>
+      </View>
 
       {selected && (
         <Text style={{ fontSize: 12, color: '#6C6C6C', marginTop: 8, fontStyle: 'italic' }}>
@@ -77,7 +74,7 @@ export default function SegmentedMoodControl({ selected, onSelect }: SegmentedMo
         </Text>
       )}
 
-      <Text style={{ fontSize: 11, color: '#B4B4B8', marginTop: 4 }}>
+      <Text style={{ fontSize: 13, color: '#6C6C6C', marginTop: 6 }}>
         Seçimin, kişisel önerileri şekillendirmemize yardımcı olur.
       </Text>
     </View>

@@ -6,13 +6,14 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  SectionList,
   Pressable,
-  Alert,
+  Animated,
+  Keyboard,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
 import { addLog, updateLog } from '../store/slices/logsSlice';
@@ -36,6 +37,7 @@ interface SymptomSelection {
 export default function DailyLogScreen({ route, navigation }: any) {
   const c = useThemeColors();
   const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
   const dispatch = useDispatch();
   const logs = useSelector((state: RootState) => state.logs);
 
@@ -51,8 +53,13 @@ export default function DailyLogScreen({ route, navigation }: any) {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error' | 'warning' | 'info'>('success');
+  const [isSaving, setIsSaving] = useState(false);
 
   const hasChanges = mood || symptoms.length > 0 || habits.length > 0 || note.trim();
+  
+  // CTA dinamik bottom pozisyonu
+  const CTA_HEIGHT = 60;
+  const ctaBottom = insets.bottom + tabBarHeight + 12;
 
   // Semptom toggle (şiddet döngüsü: 0 → 1 → 2 → 3 → 0)
   const toggleSymptom = useCallback((id: string) => {
@@ -86,7 +93,7 @@ export default function DailyLogScreen({ route, navigation }: any) {
   }, []);
 
   // Kaydet
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!hasChanges) {
       setToastMessage('Herhangi bir değişiklik yapmadın.');
       setToastType('warning');
@@ -94,13 +101,20 @@ export default function DailyLogScreen({ route, navigation }: any) {
       return;
     }
 
+    setIsSaving(true);
+    Keyboard.dismiss();
+
+    // Kısa loading animasyonu
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     const logData: any = {
       id: existingLog?.id || uuidv4(),
       date: selectedDate,
       mood,
-      symptoms: symptoms.map((s) => s.id),
+      symptoms: symptoms.map((s) => ({ id: s.id, severity: s.severity })),
+      habits,
       note: note.trim(),
       createdAt: existingLog?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -112,33 +126,52 @@ export default function DailyLogScreen({ route, navigation }: any) {
       dispatch(addLog(logData));
     }
 
-    const summary = `${symptoms.length} semptom${mood ? `, ruh hali: ${mood}` : ''} — kaydedildi.`;
-    setToastMessage(`✨ Günlüğün kaydedildi! ${summary}`);
+    setIsSaving(false);
+
+    const moodText = mood ? MOODS.find(m => m.key === mood)?.label : null;
+    const summary = `${moodText ? `Ruh hali: ${moodText}` : ''}${symptoms.length > 0 ? `${moodText ? ', ' : ''}${symptoms.length} semptom` : ''}`;
+    setToastMessage(`✨ Kaydedildi! ${summary}`);
     setToastType('success');
     setShowToast(true);
 
     setTimeout(() => {
       navigation.goBack();
     }, 1500);
-  }, [hasChanges, mood, symptoms, note, existingLog, selectedDate, dispatch, navigation]);
+  }, [hasChanges, mood, symptoms, habits, note, existingLog, selectedDate, dispatch, navigation]);
+
+  // Mood tanımları (toast için)
+  const MOODS = [
+    { key: 'harika', label: 'Harika' },
+    { key: 'iyi', label: 'İyi' },
+    { key: 'sakin', label: 'Sakin' },
+    { key: 'normal', label: 'Normal' },
+    { key: 'yorgun', label: 'Yorgun' },
+    { key: 'agrili', label: 'Ağrılı' },
+  ];
 
   return (
     <>
-      <LinearGradient
-        colors={['#FFF6FB', '#FFE6F5']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
+      <KeyboardAvoidingView
         style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <ScrollView
+        <LinearGradient
+          colors={['#FFF6FB', '#FFE6F5']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
           style={{ flex: 1 }}
-          contentContainerStyle={{
-            paddingTop: insets.top + 10,
-            paddingHorizontal: 20,
-            paddingBottom: 120,
-          }}
-          showsVerticalScrollIndicator={false}
         >
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              paddingTop: insets.top + 10,
+              paddingHorizontal: 16,
+              paddingBottom: CTA_HEIGHT + ctaBottom + 24,
+            }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
           {/* Üst hoşgeldin kartı */}
           <SectionCard style={{ padding: 16, marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -171,17 +204,22 @@ export default function DailyLogScreen({ route, navigation }: any) {
           </SectionCard>
 
           {/* Semptomlarım */}
-          <SectionCard style={{ padding: 16, marginBottom: 16 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 12 }}>
+          <SectionCard style={{ padding: 18, marginBottom: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 4 }}>
               Semptomlarım
             </Text>
+            {symptoms.length === 0 && !mood && !note && (
+              <Text style={{ fontSize: 13, color: '#B4B4B8', marginBottom: 12, fontStyle: 'italic' }}>
+                Bugün nasıldı? Küçük bir notla başlayabilirsin 💫
+              </Text>
+            )}
 
             {SYMPTOM_CATEGORIES.map((category, catIndex) => (
-              <View key={catIndex} style={{ marginBottom: catIndex < SYMPTOM_CATEGORIES.length - 1 ? 16 : 0 }}>
+              <View key={catIndex} style={{ marginBottom: catIndex < SYMPTOM_CATEGORIES.length - 1 ? 14 : 0, marginTop: 12 }}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: '#3E3E41', marginBottom: 8 }}>
                   {category.title}
                 </Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                   {category.data.map((symptom) => {
                     const selection = symptoms.find((s) => s.id === symptom.id);
                     return (
@@ -201,13 +239,13 @@ export default function DailyLogScreen({ route, navigation }: any) {
 
             <View
               style={{
-                marginTop: 12,
+                marginTop: 14,
                 paddingTop: 12,
                 borderTopWidth: 1,
                 borderTopColor: 'rgba(0,0,0,0.06)',
               }}
             >
-              <Text style={{ fontSize: 11, color: '#B4B4B8', lineHeight: 16 }}>
+              <Text style={{ fontSize: 12.5, color: '#6C6C6C', lineHeight: 18 }}>
                 💡 İpucu: Bir kez tıkla = seç. Tekrar tıkla = şiddet artır (1-3). Uzun bas = bilgi.
               </Text>
             </View>
@@ -219,7 +257,7 @@ export default function DailyLogScreen({ route, navigation }: any) {
           </SectionCard>
 
           {/* Notlarım */}
-          <SectionCard style={{ padding: 16, marginBottom: 16 }}>
+          <SectionCard style={{ padding: 18, marginBottom: 16 }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: c.text, marginBottom: 12 }}>
               Notlarım 📝
             </Text>
@@ -228,7 +266,7 @@ export default function DailyLogScreen({ route, navigation }: any) {
                 minHeight: 120,
                 borderWidth: 1,
                 borderColor: '#FFB6D4',
-                borderRadius: 14,
+                borderRadius: 16,
                 padding: 14,
                 fontSize: 14,
                 color: c.text,
@@ -268,54 +306,52 @@ export default function DailyLogScreen({ route, navigation }: any) {
               Ruh halin ve semptomlarına göre kişisel öneriler burada görünecek. AI henüz bağlı değil.
             </Text>
           </SectionCard>
-        </ScrollView>
+          </ScrollView>
+        </LinearGradient>
+      </KeyboardAvoidingView>
 
-        {/* Sticky CTA */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'position' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      {/* Sticky CTA - Alt barın üstünde */}
+      <View
+        pointerEvents="box-none"
+        style={{
+          position: 'absolute',
+          left: 16,
+          right: 16,
+          bottom: ctaBottom,
+          zIndex: 50,
+        }}
+      >
+        <Pressable
+          onPress={handleSave}
+          disabled={!hasChanges || isSaving}
+          accessibilityRole="button"
+          accessibilityLabel={isSaving ? 'Kaydediliyor' : 'Günlüğünü Kaydet'}
+          style={{
+            opacity: hasChanges && !isSaving ? 1 : 0.6,
+            shadowColor: '#000',
+            shadowOpacity: 0.2,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: 8 },
+            elevation: 16,
+          }}
         >
-          <View
+          <LinearGradient
+            colors={['#FF8BC2', '#FF5BA6']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
             style={{
-              paddingHorizontal: 20,
-              paddingTop: 12,
-              paddingBottom: Math.max(12, insets.bottom + 12),
-              backgroundColor: c.bg,
-              borderTopWidth: 1,
-              borderTopColor: c.hair,
-              shadowColor: '#000',
-              shadowOpacity: 0.12,
-              shadowRadius: 12,
-              shadowOffset: { width: 0, height: -4 },
-              elevation: 12,
+              height: CTA_HEIGHT,
+              borderRadius: 20,
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            <Pressable
-              onPress={handleSave}
-              disabled={!hasChanges}
-              accessibilityRole="button"
-              accessibilityLabel="Günlüğünü Kaydet"
-              style={{ opacity: hasChanges ? 1 : 0.6 }}
-            >
-              <LinearGradient
-                colors={['#FF8BC2', '#FF5BA6']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={{
-                  height: 52,
-                  borderRadius: 20,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '700' }}>
-                  ✨ Günlüğünü Kaydet ✨
-                </Text>
-              </LinearGradient>
-            </Pressable>
-          </View>
-        </KeyboardAvoidingView>
-      </LinearGradient>
+            <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '700' }}>
+              {isSaving ? '⏳ Kaydediliyor...' : '✨ Günlüğünü Kaydet ✨'}
+            </Text>
+          </LinearGradient>
+        </Pressable>
+      </View>
 
       {/* Semptom Bilgi Sheet */}
       {infoSheet && (
