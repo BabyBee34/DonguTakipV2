@@ -1,778 +1,532 @@
-﻿import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
+﻿import React, { useState, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import { RootState, persistor } from '../store';
+import { RootState } from '../store';
 import { setPrefs } from '../store/slices/prefsSlice';
 import { setNotificationSettings, setPermissionGranted } from '../store/slices/notificationSlice';
 import { setSettings } from '../store/slices/settingsSlice';
-import { clearActivePeriods } from '../store/slices/periodsSlice';
 import { useTheme } from '../theme/ThemeProvider';
-import Slider from '@react-native-community/slider';
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Haptics from 'expo-haptics';
+import { 
+  Gear, 
+  Bell, 
+  Moon, 
+  Lock, 
+  Download, 
+  Upload, 
+  Trash, 
+  Info,
+  Calendar,
+  Clock,
+  Palette,
+  Globe,
+  Shield,
+} from 'phosphor-react-native';
+import SettingSection from '../components/settings/SettingSection';
+import SettingRow from '../components/settings/SettingRow';
+import LabeledSlider from '../components/settings/LabeledSlider';
+import DangerZoneCard from '../components/settings/DangerZoneCard';
+import Toast from '../components/Toast';
 import { 
   requestNotificationPermission, 
   scheduleNotifications, 
   cancelAllScheduledNotificationsAsync,
-  calculateNextPeriodDate 
 } from '../services/notificationService';
 import { exportDataToJSON, importDataFromJSON, deleteAllData } from '../services/storage';
-import * as DocumentPicker from 'expo-document-picker';
-import Icon from '../components/Icon';
-import Modal from '../components/Modal';
-
-interface SettingsSection {
-  title: string;
-  items: SettingsItem[];
-}
-
-interface SettingsItem {
-  id: string;
-  type: 'toggle' | 'slider' | 'date' | 'action' | 'info';
-  label: string;
-  description?: string;
-  value?: any;
-  onPress?: () => void;
-  onValueChange?: (value: any) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  danger?: boolean;
-}
 
 export default function SettingsScreen() {
-  const { colors, spacing, borderRadius, shadows, isDark } = useTheme();
+  const { colors, spacing, borderRadius, shadows, isDark, toggleTheme } = useTheme();
   const { t, i18n } = useTranslation();
   const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
+
   const prefs = useSelector((state: RootState) => state.prefs);
-  const periods = useSelector((state: RootState) => state.periods);
-  const logs = useSelector((state: RootState) => state.logs);
-  const notificationState = useSelector((state: RootState) => state.notification);
+  const notificationSettings = useSelector((state: RootState) => state.notification);
   const settings = useSelector((state: RootState) => state.settings);
   
-  const [notifications, setNotifications] = useState(notificationState.settings.enabled);
-  const [notificationFrequency, setNotificationFrequency] = useState(notificationState.settings.frequency);
-  const [reminderTime, setReminderTime] = useState(notificationState.settings.reminderTime);
-  const [periodReminder, setPeriodReminder] = useState(notificationState.settings.periodReminder);
-  const [permissionInfoModalVisible, setPermissionInfoModalVisible] = useState(false);
-  const [frequencyModalVisible, setFrequencyModalVisible] = useState(false);
+  // Local states
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showDaysPicker, setShowDaysPicker] = useState(false);
+  const [showFrequencySheet, setShowFrequencySheet] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  // Bildirim izni kontrolü ve kullanıcı bilgilendirmesi
-  useEffect(() => {
-    const checkPermission = async () => {
+  // Handlers
+  const handlePeriodLengthChange = useCallback((value: number) => {
+    dispatch(setPrefs({ ...prefs, avgPeriodLengthDays: value }));
+  }, [dispatch, prefs]);
+
+  const handleCycleLengthChange = useCallback((value: number) => {
+    dispatch(setPrefs({ ...prefs, avgCycleLengthDays: value }));
+  }, [dispatch, prefs]);
+
+  const handleLastPeriodDateChange = useCallback((date: Date) => {
+    dispatch(setPrefs({ ...prefs, lastPeriodStartDate: date.toISOString() }));
+    setShowDatePicker(false);
+    setToast({ message: 'Son adet tarihi güncellendi', type: 'success' });
+  }, [dispatch, prefs]);
+
+  const handleNotificationToggle = useCallback(async (value: boolean) => {
+    if (value) {
       const granted = await requestNotificationPermission();
-      dispatch(setPermissionGranted(granted));
-      if (!granted && notifications) {
+      if (granted) {
+        dispatch(setNotificationSettings({ ...notificationSettings, enabled: true }));
+        dispatch(setPermissionGranted(true));
+        await scheduleNotifications();
+        setToast({ message: 'Bildirimler açıldı', type: 'success' });
+      } else {
         Alert.alert(
-          t('notifications.permission.title'),
-          t('notifications.permission.message'),
-          [
-            { text: t('common.cancel'), style: 'cancel' },
-            {
-              text: t('notifications.permission.grant'),
-              onPress: () => requestNotificationPermission(),
-            },
-          ]
+          'İzin Gerekli',
+          'Bildirimleri açmak için uygulama ayarlarından izin vermelisiniz.',
+          [{ text: 'Tamam' }]
         );
       }
-    };
-    checkPermission();
-  }, [dispatch]);
-
-  const openDatePicker = () => {
-    const initial = prefs.lastPeriodStart ? new Date(prefs.lastPeriodStart) : new Date();
-    DateTimePickerAndroid.open({
-      value: initial,
-      mode: 'date',
-      is24Hour: true,
-      onChange: (_event, selected) => {
-        if (selected) {
-          const iso = new Date(selected).toISOString().slice(0, 10);
-          
-          // Aktif period varsa uyar
-          const activePeriod = periods.find(p => !p.end);
-          if (activePeriod) {
-            Alert.alert(
-              t('common.warning'),
-              t('settings.cycle.lastPeriodStart'),
-              [
-                { text: t('common.cancel'), style: 'cancel' },
-                { 
-                  text: t('common.confirm'), 
-                  onPress: () => {
-                    dispatch(clearActivePeriods());
-                    dispatch(setPrefs({
-                      ...prefs,
-                      lastPeriodStart: iso,
-                    }));
-                    Alert.alert(t('common.success'), t('settings.cycle.lastPeriodStart'));
-                  }
-                }
-              ]
-            );
           } else {
-            dispatch(setPrefs({
-              ...prefs,
-              lastPeriodStart: iso,
-            }));
-            Alert.alert(t('common.success'), t('settings.cycle.lastPeriodStart'));
-          }
-        }
-      },
-    });
-  };
+      dispatch(setNotificationSettings({ ...notificationSettings, enabled: false }));
+      await cancelAllScheduledNotificationsAsync();
+      setToast({ message: 'Bildirimler kapatıldı', type: 'info' });
+    }
+  }, [dispatch, notificationSettings]);
 
-  const openTimePicker = () => {
-    const [hours, minutes] = reminderTime.split(':').map(Number);
-    const initial = new Date();
-    initial.setHours(hours, minutes, 0);
-    
-    DateTimePickerAndroid.open({
-      value: initial,
-      mode: 'time',
-      is24Hour: true,
-      onChange: async (_event, selected) => {
-        if (selected) {
-          const hours = selected.getHours().toString().padStart(2, '0');
-          const minutes = selected.getMinutes().toString().padStart(2, '0');
-          const timeString = `${hours}:${minutes}`;
-          
-          setReminderTime(timeString);
-          await updateNotificationSettings({ reminderTime: timeString });
-          
-          Alert.alert(t('common.success'), `${t('settings.notifications.reminderTime')}: ${timeString}`);
-        }
-      },
-    });
-  };
+  const handleReminderTimeChange = useCallback((date: Date) => {
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    dispatch(setNotificationSettings({ 
+      ...notificationSettings, 
+      reminderTime: { hour: hours, minute: minutes } 
+    }));
+    setShowTimePicker(false);
+    setToast({ message: `Hatırlatma saati ${hours}:${minutes.toString().padStart(2, '0')} olarak ayarlandı`, type: 'success' });
+  }, [dispatch, notificationSettings]);
 
-  const handleExportData = async () => {
-    Alert.alert(
-      t('settings.data.export'),
-      t('settings.data.exportConfirm'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { 
-          text: t('settings.data.export'), 
-          onPress: async () => {
-            try {
-              // Redux state'i al
-              const state = {
-                prefs,
-                periods,
-                logs,
-                settings,
-                notifications: notificationState,
-              };
+  const handleUpcomingPeriodDaysChange = useCallback((days: number) => {
+    dispatch(setNotificationSettings({ 
+      ...notificationSettings, 
+      upcomingPeriodDays: days 
+    }));
+    setShowDaysPicker(false);
+    setToast({ message: `${days} gün önce bildirim gönderilecek`, type: 'success' });
+  }, [dispatch, notificationSettings]);
 
-              await exportDataToJSON(state);
-              Alert.alert(t('common.success'), t('settings.data.exportSuccess'));
+  const handleThemeChange = useCallback(() => {
+    toggleTheme();
+    Haptics.selectionAsync();
+    setToast({ message: `Tema: ${isDark ? 'Açık' : 'Koyu'}`, type: 'info' });
+  }, [toggleTheme, isDark]);
+
+  const handleExportData = useCallback(async () => {
+    try {
+      const fileUri = await exportDataToJSON();
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri);
+        setToast({ message: 'Yedek kaydedildi', type: 'success' });
+      } else {
+        setToast({ message: 'Paylaşım özelliği desteklenmiyor', type: 'error' });
+      }
             } catch (error) {
-              Alert.alert(t('common.error'), 'Veri dışa aktarılamadı. Lütfen tekrar deneyin.');
-            }
-          }
-        }
-      ]
-    );
-  };
+      setToast({ message: 'Dışa aktarım başarısız', type: 'error' });
+    }
+  }, []);
 
-  const handleImportData = async () => {
-    Alert.alert(
-      t('settings.data.import'),
-      t('settings.data.importConfirm'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        { 
-          text: t('common.selectFile'), 
-          onPress: async () => {
+  const handleImportData = useCallback(async () => {
             try {
               const result = await DocumentPicker.getDocumentAsync({
                 type: 'application/json',
                 copyToCacheDirectory: true,
               });
 
-              if (result.canceled) {
-                return;
-              }
-
+      if (!result.canceled && result.assets && result.assets.length > 0) {
               const fileUri = result.assets[0].uri;
-              const importedData = await importDataFromJSON(fileUri);
-
-              // Double confirmation
-              Alert.alert(
-                t('settings.data.import'),
-                t('settings.data.importConfirm'),
-                [
-                  { text: t('common.cancel'), style: 'cancel' },
-                  { 
-                    text: t('common.confirm'), 
-                    style: 'destructive',
-                    onPress: () => {
-                      // Import verileri Redux'a yükle
-                      if (importedData.prefs) dispatch(setPrefs(importedData.prefs));
-                      if (importedData.settings) dispatch(setSettings(importedData.settings));
-                      if (importedData.notifications) dispatch(setNotificationSettings(importedData.notifications.settings));
-                      
-                      Alert.alert(t('common.success'), t('settings.data.import'));
-                    }
-                  }
-                ]
-              );
-            } catch (error) {
-              console.error('Import error:', error);
-              Alert.alert(t('common.error'), t('settings.data.import'));
-            }
-          }
+        const success = await importDataFromJSON(fileUri);
+        if (success) {
+          setToast({ message: 'Veriler başarıyla yüklendi', type: 'success' });
+        } else {
+          setToast({ message: 'Dosya formatı desteklenmiyor', type: 'error' });
         }
-      ]
-    );
-  };
+      }
+            } catch (error) {
+      setToast({ message: 'İçe aktarım başarısız', type: 'error' });
+    }
+  }, []);
 
-  const handleDeleteAllData = () => {
+  const handleDeleteAllData = useCallback(() => {
     Alert.alert(
-      t('settings.data.delete'),
-      t('settings.data.deleteConfirm'),
+      'Tüm Verileri Sil',
+      'Bu işlem geri alınamaz. Devam etmek istiyor musunuz?',
       [
-        { text: t('common.cancel'), style: 'cancel' },
+        { text: 'İptal', style: 'cancel' },
         { 
-          text: t('common.delete'), 
+          text: 'Devam',
           style: 'destructive', 
           onPress: () => {
-            // Double confirmation
-            Alert.alert(
-              t('common.warning'),
-              t('settings.data.deleteConfirm'),
+            Alert.prompt(
+              'Onay',
+              'Lütfen "SİL" yazarak onaylayın',
               [
-                { text: t('common.cancel'), style: 'cancel' },
+                { text: 'İptal', style: 'cancel' },
                 {
-                  text: t('common.delete'),
+                  text: 'Sil',
                   style: 'destructive',
-                  onPress: async () => {
-                    try {
+                  onPress: async (text) => {
+                    if (text === 'SİL') {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
                       await deleteAllData();
-                      await persistor.purge();
-                      Alert.alert(
-                        t('common.success'), 
-                        t('settings.data.deleteSuccess'),
-                        [{ text: t('common.ok') }]
-                      );
-                    } catch (error) {
-                      Alert.alert(t('common.error'), t('settings.data.delete'));
+                      setToast({ message: 'Tüm veriler silindi', type: 'success' });
+                    } else {
+                      setToast({ message: 'Onay metni hatalı', type: 'error' });
                     }
-                  }
-                }
-              ]
+                  },
+                },
+              ],
+              'plain-text'
             );
-          }
-        }
+          },
+        },
       ]
     );
-  };
+  }, []);
 
-  // Bildirim ayarlarını güncelle
-  const updateNotificationSettings = async (newSettings: Partial<typeof notificationState.settings>) => {
-    const updatedSettings = { ...notificationState.settings, ...newSettings };
-    dispatch(setNotificationSettings(updatedSettings));
-    
-    // Bildirimleri yeniden planla
-    const nextPeriodDate = calculateNextPeriodDate({ prefs } as RootState);
-    await scheduleNotifications(updatedSettings, nextPeriodDate);
-  };
-
-  const handleNotificationToggle = async (enabled: boolean) => {
-    if (enabled && !notificationState.permissionGranted) {
-      // İlk açılışta bilgi kartı göster
-      setPermissionInfoModalVisible(true);
-      return;
-    }
-    
-    setNotifications(enabled);
-    await updateNotificationSettings({ enabled });
-    
-    if (!enabled) {
-      await cancelAllScheduledNotificationsAsync();
-    }
-  };
-
-  const confirmNotificationPermission = async () => {
-    setPermissionInfoModalVisible(false);
-    const granted = await requestNotificationPermission();
-    dispatch(setPermissionGranted(granted));
-    
-    if (granted) {
-      setNotifications(true);
-      await updateNotificationSettings({ enabled: true });
-    } else {
-      Alert.alert(
-        t('notifications.permission.title'),
-        t('notifications.permission.deniedMessage'),
-        [{ text: t('common.ok') }]
-      );
-    }
-  };
-
-  const handleFrequencyChange = async (frequency: 'low' | 'balanced' | 'high') => {
-    setNotificationFrequency(frequency);
-    await updateNotificationSettings({ frequency });
-  };
-
-  const handlePeriodReminderToggle = async (enabled: boolean) => {
-    setPeriodReminder(enabled);
-    await updateNotificationSettings({ periodReminder: enabled });
-  };
-
-  const handleLanguageChange = () => {
-    const currentLang = i18n.language;
-    const newLang = currentLang === 'tr' ? 'en' : 'tr';
-    
-    i18n.changeLanguage(newLang);
-    dispatch(setSettings({ language: newLang }));
-    
-    Alert.alert(
-      'Başarılı',
-      `Dil ${newLang === 'tr' ? 'Türkçe' : 'English'} olarak değiştirildi`
-    );
-  };
-
-  const handleThemeChange = () => {
-    const currentTheme = settings.theme;
-    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-    
-    dispatch(setSettings({ theme: newTheme }));
-    
-    Alert.alert(
-      'Başarılı',
-      `Tema ${newTheme === 'light' ? 'Açık' : 'Karanlık'} olarak değiştirildi`
-    );
-  };
-
-  const settingsSections: SettingsSection[] = [
-    {
-      title: t('settings.sections.cycle'),
-      items: [
-        {
-          id: 'avgPeriodDays',
-          type: 'slider',
-          label: t('settings.cycle.avgPeriodDays'),
-          description: `${prefs.avgPeriodDays} ${t('reports.stats.days')}`,
-          value: prefs.avgPeriodDays,
-          min: 3,
-          max: 10,
-          step: 1,
-          onValueChange: (value) => {
-            dispatch(setPrefs({
-              ...prefs,
-              avgPeriodDays: Math.round(value),
-            }));
-          },
-        },
-        {
-          id: 'avgCycleDays',
-          type: 'slider',
-          label: t('settings.cycle.avgCycleDays'),
-          description: `${prefs.avgCycleDays} ${t('reports.stats.days')}`,
-          value: prefs.avgCycleDays,
-          min: 21,
-          max: 35,
-          step: 1,
-          onValueChange: (value) => {
-            dispatch(setPrefs({
-              ...prefs,
-              avgCycleDays: Math.round(value),
-            }));
-          },
-        },
-        {
-          id: 'lastPeriodStart',
-          type: 'date',
-          label: t('settings.cycle.lastPeriodStart'),
-          description: prefs.lastPeriodStart || t('settings.cycle.notSelected'),
-          onPress: openDatePicker,
-        },
-      ],
-    },
-    {
-      title: t('settings.sections.notifications'),
-      items: [
-        {
-          id: 'notifications',
-          type: 'toggle',
-          label: t('settings.notifications.enable'),
-          description: t('settings.notifications.enableDescription'),
-          value: notifications,
-          onValueChange: handleNotificationToggle,
-        },
-        {
-          id: 'notificationFrequency',
-          type: 'action',
-          label: t('settings.notifications.frequency'),
-          description: t(`settings.notifications.frequencyOptions.${notificationFrequency}` as any),
-          onPress: () => setFrequencyModalVisible(true),
-        },
-        {
-          id: 'reminderTime',
-          type: 'action',
-          label: t('settings.notifications.reminderTime'),
-          description: reminderTime,
-          onPress: openTimePicker,
-        },
-        {
-          id: 'periodReminder',
-          type: 'toggle',
-          label: t('settings.notifications.periodReminder'),
-          description: t('settings.notifications.periodReminderDescription'),
-          value: periodReminder,
-          onValueChange: handlePeriodReminderToggle,
-        },
-      ],
-    },
-    {
-      title: t('settings.sections.appearance'),
-      items: [
-        {
-          id: 'theme',
-          type: 'action',
-          label: t('settings.appearance.theme'),
-          description: isDark ? t('settings.appearance.theme') : t('settings.appearance.themeLight'),
-          onPress: handleThemeChange,
-        },
-        {
-          id: 'language',
-          type: 'action',
-          label: t('settings.appearance.language'),
-          description: i18n.language === 'tr' ? 'Türkçe' : 'English',
-          onPress: handleLanguageChange,
-        },
-      ],
-    },
-    {
-      title: t('settings.sections.privacy'),
-      items: [
-        {
-          id: 'privacy',
-          type: 'info',
-          label: t('settings.privacy.dataSecurity'),
-          description: t('settings.privacy.dataSecurityDescription'),
-        },
-        {
-          id: 'pin',
-          type: 'action',
-          label: t('settings.privacy.pinLock'),
-          description: t('settings.privacy.pinLockDescription'),
-          onPress: () => {
-            Alert.alert(t('common.info'), t('settings.privacy.pinLockDescription'));
-          },
-        },
-      ],
-    },
-    {
-      title: t('settings.sections.data'),
-      items: [
-        {
-          id: 'export',
-          type: 'action',
-          label: t('settings.data.export'),
-          description: t('settings.data.exportDescription'),
-          onPress: handleExportData,
-        },
-        {
-          id: 'import',
-          type: 'action',
-          label: t('settings.data.import'),
-          description: t('settings.data.importDescription'),
-          onPress: handleImportData,
-        },
-      ],
-    },
-    {
-      title: '⚠️ ' + t('settings.sections.dangerZone'),
-      items: [
-        {
-          id: 'delete',
-          type: 'action',
-          label: t('settings.data.delete'),
-          description: t('settings.data.deleteDescription'),
-          onPress: handleDeleteAllData,
-          danger: true,
-        },
-      ],
-    },
-    {
-      title: t('settings.sections.about'),
-      items: [
-        {
-          id: 'version',
-          type: 'info',
-          label: t('settings.about.version'),
-          description: '1.0.0',
-        },
-        {
-          id: 'medical',
-          type: 'info',
-          label: t('settings.about.medical'),
-          description: t('settings.about.medicalDescription'),
-        },
-        {
-          id: 'privacy-policy',
-          type: 'action',
-          label: t('settings.about.privacyPolicy'),
-          description: t('settings.about.privacyPolicyDescription'),
-          onPress: () => {
-            Alert.alert(
-              t('settings.about.privacyPolicy'),
-              t('settings.about.privacyPolicyText'),
-              [{ text: t('common.ok') }]
-            );
-          },
-        },
-        {
-          id: 'contact',
-          type: 'action',
-          label: t('settings.about.contact'),
-          description: t('settings.about.contactEmail'),
-          onPress: () => {
-            Alert.alert(t('settings.about.contact'), `E-mail: ${t('settings.about.contactEmail')}`);
-          },
-        },
-      ],
-    },
-  ];
-
-  const renderSettingItem = (item: SettingsItem) => {
-    const baseStyle = {
-      backgroundColor: colors.bg,
-      borderRadius: borderRadius.card,
-      padding: spacing.lg,
-      marginBottom: spacing.sm,
-      ...shadows.card,
-    };
-
-    const dangerStyle = item.danger ? {
-      borderLeftWidth: 4,
-      borderLeftColor: colors.danger,
-    } : {};
-
-    // Action ve Date tipindeki itemleri tıklanabilir yap
-    if (item.type === 'action' || item.type === 'date') {
-      return (
-        <TouchableOpacity 
-          key={item.id} 
-          style={[baseStyle, dangerStyle]}
-          onPress={item.onPress}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={item.label}
-          accessibilityHint={item.description}
-        >
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View style={{ flex: 1, marginRight: spacing.md }}>
-              <Text style={{ 
-                fontSize: 16, 
-                fontWeight: '600', 
-                color: item.danger ? colors.danger : colors.ink,
-                marginBottom: spacing.xs 
-              }}>
-                {item.label}
-              </Text>
-              {item.description && (
-                <Text style={{ fontSize: 14, color: colors.inkSoft }}>
-                  {item.description} {(item.id === 'language' || item.id === 'theme') && '✓'}
-                </Text>
-              )}
-            </View>
-            <Text style={{ fontSize: 24, color: colors.inkLight, fontWeight: '300' }}>›</Text>
-          </View>
-        </TouchableOpacity>
-      );
-    }
-
-    // Diğer tipler için normal View
-    return (
-      <View key={item.id} style={[baseStyle, dangerStyle]}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View style={{ flex: 1, marginRight: spacing.md }}>
-            <Text style={{ 
-              fontSize: 16, 
-              fontWeight: '600', 
-              color: item.danger ? colors.danger : colors.ink,
-              marginBottom: spacing.xs 
-            }}>
-              {item.label}
-            </Text>
-            {item.description && (
-              <Text style={{ fontSize: 14, color: colors.inkSoft }}>
-                {item.description}
-              </Text>
-            )}
-          </View>
-
-          {item.type === 'toggle' && (
-            <Switch
-              value={item.value}
-              onValueChange={item.onValueChange}
-              trackColor={{ false: colors.bgGray, true: colors.primary200 }}
-              thumbColor={item.value ? colors.primary : colors.inkLight}
-              accessibilityRole="switch"
-              accessibilityLabel={item.label}
-              accessibilityHint={item.description}
-            />
-          )}
-
-          {item.type === 'slider' && (
-            <View style={{ width: 120 }}>
-              <Slider
-                minimumValue={item.min}
-                maximumValue={item.max}
-                step={item.step}
-                value={item.value}
-                onValueChange={item.onValueChange}
-                minimumTrackTintColor={colors.primary}
-                maximumTrackTintColor={colors.bgGray}
-                thumbTintColor={colors.primary}
-              />
-            </View>
-          )}
-        </View>
-      </View>
-    );
+  const formatReminderTime = () => {
+    const { hour, minute } = notificationSettings.reminderTime;
+    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
   };
 
   return (
-    <>
-      <ScrollView style={{ flex: 1, backgroundColor: colors.bgSoft }}>
-        <View style={{ padding: spacing.xl, paddingTop: spacing.xxl, paddingBottom: 100 }}>
-          <LinearGradient colors={[colors.bgSoft, colors.bg]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: borderRadius.card, padding: spacing.lg, marginBottom: spacing.xl, ...shadows.card }}>
-            <Text style={{ fontSize: 28, fontWeight: '700', color: colors.ink }}>
-              {t('settings.title')}
-            </Text>
-          </LinearGradient>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF9FB' }} edges={['top']}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingTop: insets.top + 16,
+          paddingHorizontal: 16,
+          paddingBottom: tabBarHeight + 24,
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Gradient Başlık Kartı */}
+        <LinearGradient
+          colors={['#FFB6EC', '#D6A3FF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            borderRadius: 20,
+            padding: 16,
+            marginBottom: 16,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.05,
+            shadowRadius: 8,
+            elevation: 2,
+          }}
+        >
+          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#FFF' }}>
+            Ayarlar ⚙️
+          </Text>
+          <Text style={{ fontSize: 14, color: '#FFF', opacity: 0.9, marginTop: 8 }}>
+            Döngü, bildirim ve görünüm tercihlerini yönet.
+          </Text>
+        </LinearGradient>
 
-          {settingsSections.map((section, sectionIndex) => (
-            <View key={sectionIndex} style={{ marginBottom: spacing.xl }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md, paddingHorizontal: spacing.sm }}>
-                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', marginRight: spacing.sm, ...shadows.card }}>
-                  {section.title === t('settings.sections.cycle') && <Icon name="autorenew" size={18} color={colors.primary} />}
-                  {section.title === t('settings.sections.notifications') && <Icon name="notifications" size={18} color={colors.primary} />}
-                  {section.title === t('settings.sections.appearance') && <Icon name="palette" size={18} color={colors.primary} />}
-                  {section.title === t('settings.sections.privacy') && <Icon name="lock" size={18} color={colors.primary} />}
-                  {section.title === t('settings.sections.data') && <Icon name="backup" size={18} color={colors.primary} />}
-                  {section.title === t('settings.sections.about') && <Icon name="info" size={18} color={colors.primary} />}
-                </View>
-                <Text style={{ fontSize: 18, fontWeight: '700', color: colors.ink }}>
-                  {section.title}
-                </Text>
-              </View>
-              
-              {section.items.map(renderSettingItem)}
+        {/* A) Döngü Tercihleri */}
+        <SettingSection title="DÖNGÜ TERCİHLERİ">
+          <LabeledSlider
+            label="Ortalama Adet Süresi"
+            description="Adet kanamalarının ortalama süresi"
+            value={prefs.avgPeriodLengthDays}
+            min={3}
+            max={10}
+            step={1}
+            unit="gün"
+            onValueChange={handlePeriodLengthChange}
+            accessibilityLabel={`Ortalama Adet Süresi ${prefs.avgPeriodLengthDays} gün`}
+          />
+          
+          <View style={{ height: 16 }} />
+          
+          <LabeledSlider
+            label="Ortalama Döngü Süresi"
+            description="Döngünün ortalama uzunluğu (adet başlangıcından sonrakine)"
+            value={prefs.avgCycleLengthDays}
+            min={21}
+            max={40}
+            step={1}
+            unit="gün"
+            onValueChange={handleCycleLengthChange}
+            accessibilityLabel={`Ortalama Döngü Süresi ${prefs.avgCycleLengthDays} gün`}
+          />
+          
+          <View style={{ height: 16, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }} />
+          
+          <SettingRow
+            icon={<Calendar size={22} color="#E94FA1" />}
+            title="Son Adet Başlangıcı"
+            description="Tahmin doğruluğunu artırır."
+            value={prefs.lastPeriodStartDate ? new Date(prefs.lastPeriodStartDate).toLocaleDateString('tr-TR') : 'Seçilmedi'}
+            onPress={() => setShowDatePicker(true)}
+            isLast
+            accessibilityLabel="Son Adet Başlangıcı"
+            accessibilityHint="Tarih seçici açmak için dokun"
+          />
+        </SettingSection>
+
+        {/* B) Bildirimler */}
+        <SettingSection title="BİLDİRİMLER">
+          <SettingRow
+            icon={<Bell size={22} color="#E94FA1" />}
+            title="Bildirimleri Aç"
+            description={notificationSettings.enabled ? 'Açık' : 'Kapalı'}
+            switchValue={notificationSettings.enabled}
+            onSwitchChange={handleNotificationToggle}
+            accessibilityLabel="Bildirimleri Aç"
+          />
+          
+          <SettingRow
+            icon={<Clock size={22} color="#E94FA1" />}
+            title="Hatırlatma Saati"
+            description="Günlük hatırlatma saati"
+            value={formatReminderTime()}
+            onPress={() => setShowTimePicker(true)}
+            disabled={!notificationSettings.enabled}
+            disabledText={!notificationSettings.enabled ? 'Bildirimler kapalı' : undefined}
+            accessibilityLabel="Hatırlatma Saati"
+            accessibilityHint="Saat seçici açmak için dokun"
+          />
+          
+          <SettingRow
+            icon={<Info size={22} color="#E94FA1" />}
+            title="Yaklaşan Adet Bildirimi"
+            description={`Adet başlamadan ${notificationSettings.upcomingPeriodDays} gün önce haber ver`}
+            value={`${notificationSettings.upcomingPeriodDays} gün`}
+            onPress={() => setShowDaysPicker(true)}
+            disabled={!notificationSettings.enabled}
+            disabledText={!notificationSettings.enabled ? 'Bildirimler kapalı' : undefined}
+            isLast
+            accessibilityLabel="Yaklaşan Adet Bildirimi"
+            accessibilityHint="Gün sayısı seçmek için dokun"
+          />
+        </SettingSection>
+
+        {/* C) Görünüm */}
+        <SettingSection title="GÖRÜNÜM">
+          <SettingRow
+            icon={<Moon size={22} color="#E94FA1" />}
+            title="Tema"
+            description={isDark ? 'Koyu tema aktif' : 'Açık tema aktif'}
+            value={isDark ? 'Koyu' : 'Açık'}
+            onPress={handleThemeChange}
+            accessibilityLabel="Tema"
+            accessibilityHint="Tema değiştirmek için dokun"
+          />
+          
+          <SettingRow
+            icon={<Globe size={22} color="#E94FA1" />}
+            title="Dil"
+            description="Uygulama dili"
+            value="Türkçe"
+            disabled
+            disabledText="Yakında eklenecek"
+            isLast
+            accessibilityLabel="Dil"
+          />
+        </SettingSection>
+
+        {/* D) Gizlilik & Güvenlik */}
+        <SettingSection title="GİZLİLİK & GÜVENLİK">
+          <View style={{
+            padding: 16,
+            backgroundColor: '#F0FDF4',
+            borderRadius: 12,
+            borderLeftWidth: 3,
+            borderLeftColor: '#10B981',
+            marginBottom: 16,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Lock size={20} color="#10B981" />
+              <Text style={{ fontSize: 15, fontWeight: '600', color: '#047857', marginLeft: 8 }}>
+                Veri Gizliliği
+              </Text>
             </View>
-          ))}
+            <Text style={{ fontSize: 13, color: '#065F46', lineHeight: 18 }}>
+              Veriler cihazında, buluta gönderilmez. Tüm bilgileriniz yerel depolamada güvende.
+            </Text>
+          </View>
+          
+          <SettingRow
+            icon={<Shield size={22} color="#E94FA1" />}
+            title="PIN Kilidi"
+            description="Uygulama açılışında PIN iste"
+            disabled
+            disabledText="Yakında eklenecek"
+            isLast
+            accessibilityLabel="PIN Kilidi"
+          />
+        </SettingSection>
+
+        {/* E) Veri Yönetimi */}
+        <SettingSection title="VERİ YÖNETİMİ">
+          <SettingRow
+            icon={<Download size={22} color="#E94FA1" />}
+            title="Verileri Dışa Aktar"
+            description="JSON yedeği oluştur"
+            onPress={handleExportData}
+            accessibilityLabel="Verileri Dışa Aktar"
+            accessibilityHint="Yedek dosyası oluşturmak için dokun"
+          />
+          
+          <SettingRow
+            icon={<Upload size={22} color="#E94FA1" />}
+            title="Verileri İçe Aktar"
+            description="JSON'dan yükle"
+            onPress={handleImportData}
+            isLast
+            accessibilityLabel="Verileri İçe Aktar"
+            accessibilityHint="Yedek dosyası yüklemek için dokun"
+          />
+        </SettingSection>
+
+        {/* Tehlikeli Bölge */}
+        <View style={{ marginBottom: 12 }}>
+            <Text style={{ 
+            fontSize: 13,
+              fontWeight: '600', 
+            color: '#DC2626',
+            marginBottom: 8,
+            marginLeft: 4,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}>
+            TEHLİKELİ BÖLGE
+          </Text>
+          <DangerZoneCard
+            title="Tüm Verileri Sil"
+            description="Adet kayıtları, günlük girişleri ve tüm ayarlarınız silinecektir. Bu işlem geri alınamaz!"
+            buttonText="Tüm Verileri Sil"
+            onPress={handleDeleteAllData}
+          />
         </View>
+
+        {/* F) Hakkında */}
+        <SettingSection title="HAKKINDA">
+          <SettingRow
+            title="Uygulama Versiyonu"
+            value="1.0.0"
+            accessibilityLabel="Uygulama Versiyonu 1.0.0"
+          />
+          
+          <View style={{
+            padding: 16,
+            backgroundColor: '#FFF7ED',
+            borderRadius: 12,
+            borderLeftWidth: 3,
+            borderLeftColor: '#F59E0B',
+            marginTop: 16,
+          }}>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: '#92400E', marginBottom: 4 }}>
+              ⚕️ Tıbbi Uyarı
+            </Text>
+            <Text style={{ fontSize: 13, color: '#78350F', lineHeight: 18 }}>
+              Bu uygulama tıbbi tavsiye yerine geçmez. Sağlık sorunlarınız için mutlaka bir doktora danışın.
+              </Text>
+          </View>
+        </SettingSection>
       </ScrollView>
 
-      {/* Bildirim İzni Bilgi Kartı Modal */}
-    <Modal 
-      visible={permissionInfoModalVisible} 
-      onClose={() => setPermissionInfoModalVisible(false)}
-      title={t('notifications.permission.infoTitle')}
-    >
-      <View style={{ gap: spacing.lg }}>
-        <Text style={{ fontSize: 15, color: colors.ink, lineHeight: 22 }}>
-          {t('notifications.permission.infoMessage')}
-        </Text>
-        
-        <View style={{ 
-          backgroundColor: colors.info + '20', 
-          padding: spacing.lg, 
-          borderRadius: borderRadius.card,
-          borderLeftWidth: 4,
-          borderLeftColor: colors.info,
+      {/* Date Picker */}
+      <DateTimePickerModal
+        isVisible={showDatePicker}
+        mode="date"
+        onConfirm={handleLastPeriodDateChange}
+        onCancel={() => setShowDatePicker(false)}
+        date={prefs.lastPeriodStartDate ? new Date(prefs.lastPeriodStartDate) : new Date()}
+        maximumDate={new Date()}
+        locale="tr_TR"
+      />
+
+      {/* Time Picker */}
+      <DateTimePickerModal
+        isVisible={showTimePicker}
+        mode="time"
+        onConfirm={handleReminderTimeChange}
+        onCancel={() => setShowTimePicker(false)}
+        date={new Date(0, 0, 0, notificationSettings.reminderTime.hour, notificationSettings.reminderTime.minute)}
+        is24Hour={true}
+        locale="tr_TR"
+      />
+
+      {/* Days Picker Modal */}
+      {showDaysPicker && (
+        <View style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          justifyContent: 'center',
+          alignItems: 'center',
         }}>
-          <Text style={{ fontSize: 14, color: colors.ink, lineHeight: 20 }}>
-            💡 {t('notifications.permission.infoNote')}
+          <View style={{
+            backgroundColor: '#FFF',
+            borderRadius: 20,
+            padding: 24,
+            width: '80%',
+            maxWidth: 300,
+          }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 16, textAlign: 'center' }}>
+              Kaç gün önce bildirim?
+            </Text>
+            {[1, 2, 3, 4, 5].map((days) => (
+              <TouchableOpacity
+                key={days}
+                onPress={() => handleUpcomingPeriodDaysChange(days)}
+                style={{
+                  paddingVertical: 16,
+                  paddingHorizontal: 20,
+                  borderRadius: 12,
+                  backgroundColor: notificationSettings.upcomingPeriodDays === days ? '#FFE8F5' : '#F9FAFB',
+                  marginBottom: 8,
+                }}
+              >
+                <Text style={{
+                  fontSize: 15,
+                  fontWeight: notificationSettings.upcomingPeriodDays === days ? '600' : '500',
+                  color: notificationSettings.upcomingPeriodDays === days ? '#E94FA1' : '#6B7280',
+                  textAlign: 'center',
+                }}>
+                  {days} gün önce
           </Text>
-        </View>
-
-        <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.md }}>
-          <TouchableOpacity
-            onPress={() => setPermissionInfoModalVisible(false)}
-            style={{ 
-              flex: 1, 
-              paddingVertical: spacing.lg, 
-              borderRadius: borderRadius.button,
-              backgroundColor: colors.bgGray,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ fontSize: 16, fontWeight: '600', color: colors.inkSoft }}>
-              {t('common.cancel')}
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            onPress={confirmNotificationPermission}
-            style={{ 
-              flex: 1, 
-              paddingVertical: spacing.lg, 
-              borderRadius: borderRadius.button,
-              backgroundColor: colors.primary,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ fontSize: 16, fontWeight: '600', color: colors.textOnPrimary }}>
-              {t('common.confirm')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-
-    {/* Frekans Seçimi Modal */}
-    <Modal 
-      visible={frequencyModalVisible} 
-      onClose={() => setFrequencyModalVisible(false)}
-      title={t('settings.notifications.frequency')}
-    >
-      <View style={{ gap: spacing.sm }}>
-        {(['low', 'balanced', 'high'] as const).map((freq) => (
-          <TouchableOpacity
-            key={freq}
-            onPress={() => {
-              handleFrequencyChange(freq);
-              setFrequencyModalVisible(false);
-            }}
-            style={{
-              paddingVertical: spacing.lg,
-              paddingHorizontal: spacing.lg,
-              borderRadius: borderRadius.card,
-              backgroundColor: notificationFrequency === freq ? colors.primary200 : colors.bgSoft,
-              borderWidth: notificationFrequency === freq ? 2 : 1,
-              borderColor: notificationFrequency === freq ? colors.primary : colors.bgGray,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={{ 
-                fontSize: 16, 
-                fontWeight: notificationFrequency === freq ? '600' : '400',
-                color: notificationFrequency === freq ? colors.primary : colors.ink,
-                marginBottom: spacing.xs,
-              }}>
-                {t(`settings.notifications.frequencyOptions.${freq}` as any)}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              onPress={() => setShowDaysPicker(false)}
+              style={{
+                paddingVertical: 12,
+                marginTop: 8,
+              }}
+            >
+              <Text style={{ fontSize: 15, color: '#6B7280', textAlign: 'center' }}>
+                İptal
               </Text>
-              <Text style={{ fontSize: 13, color: colors.inkSoft, lineHeight: 18 }}>
-                {t(`settings.notifications.frequencyDescriptions.${freq}` as any)}
-              </Text>
-            </View>
-            {notificationFrequency === freq && (
-              <Icon name="checkmark-circle" size={24} color={colors.primary} style={{ marginLeft: spacing.md }} />
-            )}
-          </TouchableOpacity>
-        ))}
+            </TouchableOpacity>
+          </View>
       </View>
-    </Modal>
-    </>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onDismiss={() => setToast(null)}
+        />
+      )}
+    </SafeAreaView>
   );
 }
