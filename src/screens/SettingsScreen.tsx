@@ -13,6 +13,8 @@ import { useTheme } from '../theme/ThemeProvider';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
+// @ts-ignore - Fallback import
+const DateTimePicker = DateTimePickerModal || require('react-native-modal-datetime-picker').default;
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
