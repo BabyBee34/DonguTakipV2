@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import Slider from '@react-native-community/slider';
+import { Slider } from '@react-native-community/slider';
 import * as Haptics from 'expo-haptics';
 
 interface LabeledSliderProps {
