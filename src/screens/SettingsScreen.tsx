@@ -32,7 +32,6 @@ import {
   Globe,
   Shield,
 } from 'phosphor-react-native';
-import SettingSection from '../components/settings/SettingSection';
 import SettingRow from '../components/settings/SettingRow';
 import LabeledSlider from '../components/settings/LabeledSlider';
 import DangerZoneCard from '../components/settings/DangerZoneCard';
