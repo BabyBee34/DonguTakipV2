@@ -47,6 +47,7 @@ import {
   checkNotificationPermission,
 } from '../services/notificationService';
 import { exportDataToFile, importDataFromFile, mergeImportedData } from '../services/backupService';
+import * as Notifications from 'expo-notifications';
 
 export default function SettingsScreen() {
   const { colors, spacing, borderRadius, shadows, isDark, toggleTheme, setThemeMode } = useTheme();
@@ -70,11 +71,13 @@ export default function SettingsScreen() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [scheduledCount, setScheduledCount] = useState(0);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  // İzin kontrolü
+  // İzin kontrolü ve planlanan bildirim sayısı
   useEffect(() => {
     checkPermissionStatus();
+    updateScheduledCount();
   }, [notificationSettings.enabled]);
 
   const checkPermissionStatus = async () => {
@@ -83,6 +86,15 @@ export default function SettingsScreen() {
       setPermissionDenied(!hasPermission);
     } else {
       setPermissionDenied(false);
+    }
+  };
+
+  const updateScheduledCount = async () => {
+    if (notificationSettings.enabled) {
+      const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+      setScheduledCount(scheduledNotifications.length);
+    } else {
+      setScheduledCount(0);
     }
   };
 
@@ -112,6 +124,7 @@ export default function SettingsScreen() {
         
         // Bildirimleri planla
         await scheduleNotifications(newSettings as any);
+        await updateScheduledCount();
         
         setPermissionDenied(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -148,6 +161,7 @@ export default function SettingsScreen() {
     if (notificationSettings.enabled) {
       await cancelAllScheduledNotificationsAsync();
       await scheduleNotifications(newSettings as any);
+      await updateScheduledCount();
     }
     
     setShowTimePicker(false);
@@ -170,6 +184,7 @@ export default function SettingsScreen() {
     if (notificationSettings.enabled && days > 0) {
       await cancelAllScheduledNotificationsAsync();
       await scheduleNotifications(newSettings as any);
+      await updateScheduledCount();
     }
     
     setShowDaysPicker(false);
@@ -451,7 +466,9 @@ export default function SettingsScreen() {
           <SettingRow
             icon={<Bell size={20} color="#E94FA1" />}
             title="Bildirimleri Aç"
-            description={notificationSettings.enabled ? 'Açık' : 'Kapalı'}
+            description={notificationSettings.enabled 
+              ? `Açık${scheduledCount > 0 ? ` • ${scheduledCount} bildirim planlandı` : ''}` 
+              : 'Kapalı'}
             switchValue={notificationSettings.enabled}
             onSwitchChange={handleNotificationToggle}
             accessibilityLabel="Bildirimleri Aç"
