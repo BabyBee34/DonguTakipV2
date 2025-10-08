@@ -18,7 +18,7 @@ import SkeletonLoader from '../components/SkeletonLoader';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import { VictoryBar, VictoryChart, VictoryAxis, VictoryPie, VictoryLine, VictoryScatter, VictoryTheme, VictoryLabel } from 'victory-native';
+import { BarChart, LineChart, PieChart } from 'react-native-gifted-charts';
 import { format, subDays, isAfter, isBefore, parseISO } from 'date-fns';
 import { tr } from 'date-fns/locale';
 
@@ -101,10 +101,14 @@ export default function ReportsScreen({ navigation }: any) {
     return entries
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map(([symptom, freq]) => ({ x: symptom.length > 12 ? symptom.slice(0, 10) + '...' : symptom, y: freq }));
-  }, [symptomFreq]);
+      .map(([symptom, freq]) => ({ 
+        value: freq, 
+        label: symptom.length > 12 ? symptom.slice(0, 10) + '...' : symptom,
+        frontColor: colors.primary 
+      }));
+  }, [symptomFreq, colors]);
 
-  // Ruh hali dağılımı (donut)
+  // Ruh hali dağılımı (pie chart)
   const moodDistribution = useMemo(() => {
     const moodCounts: Record<string, number> = {};
     filteredLogs.forEach(log => {
@@ -126,22 +130,35 @@ export default function ReportsScreen({ navigation }: any) {
       angry: '😡 Kızgın',
     };
 
-    return Object.entries(moodCounts).map(([mood, count]) => ({
-      x: moodMap[mood] || mood,
-      y: count,
-      percent: total > 0 ? Math.round((count / total) * 100) : 0,
+    const colors = ['#FFB6EC', '#D6A3FF', '#CFF8EE', '#FFD86B', '#FFDCE7', '#B3B3FF', '#FFC7DB', '#FFB3CC', '#FF9999'];
+    
+    return Object.entries(moodCounts).map(([mood, count], idx) => ({
+      value: count,
+      color: colors[idx % colors.length],
+      text: `${Math.round((count / total) * 100)}%`,
     }));
   }, [filteredLogs]);
 
-  // Döngü geçmişi (çizgi grafik)
+  // Döngü geçmişi (line chart)
   const cycleHistoryData = useMemo(() => {
     return filteredPeriods
       .filter(p => p.cycleLengthDays && p.periodLengthDays)
       .slice(-8)
       .map((p, idx) => ({
-        x: idx + 1,
-        cycleLength: p.cycleLengthDays,
-        periodLength: p.periodLengthDays,
+        value: p.cycleLengthDays!,
+        label: `D${idx + 1}`,
+        dataPointText: p.cycleLengthDays!.toString(),
+      }));
+  }, [filteredPeriods]);
+
+  const periodHistoryData = useMemo(() => {
+    return filteredPeriods
+      .filter(p => p.cycleLengthDays && p.periodLengthDays)
+      .slice(-8)
+      .map((p, idx) => ({
+        value: p.periodLengthDays!,
+        label: `D${idx + 1}`,
+        dataPointText: p.periodLengthDays!.toString(),
       }));
   }, [filteredPeriods]);
 
@@ -347,47 +364,34 @@ export default function ReportsScreen({ navigation }: any) {
                 <Text style={{ fontSize: 13, color: colors.inkSoft, marginBottom: spacing.md }}>
                   En sık 5 semptom, yüzde oranlı
                 </Text>
-                <VictoryChart
-                  width={width - 64}
+                <BarChart
+                  data={topSymptoms}
+                  width={width - 80}
                   height={220}
-                  domainPadding={{ x: 20, y: 10 }}
-                  padding={{ top: 30, bottom: 50, left: 50, right: 20 }}
-                >
-                  <VictoryAxis
-                    style={{
-                      axis: { stroke: '#EAEAEA' },
-                      tickLabels: { fontSize: 10, fill: '#6B7280', angle: -15, textAnchor: 'end' },
-                      grid: { stroke: 'none' },
-                    }}
-                  />
-                  <VictoryAxis
-                    dependentAxis
-                    style={{
-                      axis: { stroke: 'none' },
-                      tickLabels: { fontSize: 10, fill: '#9CA3AF' },
-                      grid: { stroke: '#F3F4F6', strokeDasharray: '4' },
-                    }}
-                  />
-                  <VictoryBar
-                    data={topSymptoms}
-                    style={{ data: { fill: colors.primary } }}
-                    cornerRadius={{ top: 8 }}
-                    barWidth={30}
-                    labels={({ datum }) => `${datum.y}%`}
-                    labelComponent={<VictoryLabel dy={-8} style={{ fontSize: 11, fill: colors.ink, fontWeight: '600' }} />}
-                  />
-                </VictoryChart>
+                  barWidth={width * 0.6 / topSymptoms.length}
+                  noOfSections={4}
+                  barBorderRadius={8}
+                  frontColor={colors.primary}
+                  yAxisThickness={0}
+                  xAxisThickness={1}
+                  xAxisColor="#EAEAEA"
+                  hideRules
+                  showValuesAsTopLabel
+                  topLabelTextStyle={{ fontSize: 11, fontWeight: '600', color: colors.ink }}
+                  xAxisLabelTextStyle={{ fontSize: 10, color: '#6B7280', rotation: -15 }}
+                  maxValue={100}
+                />
                 {topSymptoms.length > 0 && (
-                  <Text style={{ fontSize: 12, color: colors.inkLight, marginTop: spacing.xs, textAlign: 'center' }}>
+                  <Text style={{ fontSize: 12, color: colors.inkLight, marginTop: spacing.sm, textAlign: 'center' }}>
                     En sık görülen: <Text style={{ fontWeight: '700', color: colors.ink }}>
-                      {topSymptoms[0].x} ({topSymptoms[0].y}%)
+                      {topSymptoms[0].label} ({topSymptoms[0].value}%)
                     </Text>
                   </Text>
                 )}
               </Card>
             )}
 
-            {/* Ruh Hali Dağılımı - Donut */}
+            {/* Ruh Hali Dağılımı - Pie Chart */}
             {moodDistribution.length > 0 && (
               <Card backgroundColor={colors.bgSoft} style={{ marginBottom: 16 }}>
                 <Text style={{ fontSize: 16, fontWeight: '700', color: colors.ink, marginBottom: spacing.sm }}>
@@ -397,47 +401,19 @@ export default function ReportsScreen({ navigation }: any) {
                   Ruh hali kategorilerine göre kayıt sayısı
                 </Text>
                 <View style={{ alignItems: 'center', marginVertical: spacing.md }}>
-                  <VictoryPie
+                  <PieChart
                     data={moodDistribution}
-                    width={280}
-                    height={280}
-                    innerRadius={80}
-                    labelRadius={100}
-                    labels={({ datum }) => `${datum.percent}%`}
-                    style={{
-                      labels: { fontSize: 11, fill: '#FFF', fontWeight: '700' },
-                      data: {
-                        fill: ({ index }) => {
-                          const colors = ['#FFB6EC', '#D6A3FF', '#CFF8EE', '#FFD86B', '#FFDCE7', '#B3B3FF', '#FFC7DB', '#FFB3CC', '#FF9999'];
-                          return colors[index % colors.length];
-                        },
-                      },
-                    }}
-                  />
-                  <Text style={{ position: 'absolute', fontSize: 24, fontWeight: '700', color: colors.ink, top: '45%' }}>
-                    {moodDistribution.reduce((sum, d) => sum + d.y, 0)}
-                  </Text>
-                </View>
-                {/* Legend */}
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm }}>
-                  {moodDistribution.slice(0, 6).map((item, idx) => (
-                    <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginRight: spacing.sm }}>
-                      <View
-                        style={{
-                          width: 12,
-                          height: 12,
-                          borderRadius: 6,
-                          backgroundColor: ['#FFB6EC', '#D6A3FF', '#CFF8EE', '#FFD86B', '#FFDCE7', '#B3B3FF'][idx],
-                          marginRight: 6,
-                        }}
-                      />
-                      <Text style={{ fontSize: 11, color: colors.inkSoft }}>
-                        {item.x} ({item.percent}%)
+                    donut
+                    radius={80}
+                    innerRadius={50}
+                    centerLabelComponent={() => (
+                      <Text style={{ fontSize: 20, fontWeight: '700', color: colors.ink }}>
+                        {moodDistribution.reduce((sum, d) => sum + d.value, 0)}
                       </Text>
-                    </View>
-                  ))}
+                    )}
+                  />
                 </View>
-                <Text style={{ fontSize: 11, color: colors.inkLight, marginTop: spacing.md, textAlign: 'center' }}>
+                <Text style={{ fontSize: 11, color: colors.inkLight, marginTop: spacing.xs, textAlign: 'center' }}>
                   ⚠️ Bu bilgiler geneldir; tıbbi tavsiye değildir.
                 </Text>
               </Card>
@@ -447,51 +423,57 @@ export default function ReportsScreen({ navigation }: any) {
             {cycleHistoryData.length > 0 && (
               <Card backgroundColor={colors.bgSoft} style={{ marginBottom: 16 }}>
                 <Text style={{ fontSize: 16, fontWeight: '700', color: colors.ink, marginBottom: spacing.sm }}>
-                  Adet Süresi ve Döngü Uzunluğu Geçmişi 📈
+                  Döngü Uzunluğu Geçmişi 📈
                 </Text>
                 <Text style={{ fontSize: 13, color: colors.inkSoft, marginBottom: spacing.md }}>
                   Son döngülerdeki değişimler (sadece geçmiş)
                 </Text>
-                <VictoryChart
-                  width={width - 64}
+                <LineChart
+                  data={cycleHistoryData}
+                  width={width - 80}
                   height={220}
-                  padding={{ top: 30, bottom: 40, left: 50, right: 20 }}
-                >
-                  <VictoryAxis
-                    style={{
-                      axis: { stroke: '#EAEAEA' },
-                      tickLabels: { fontSize: 10, fill: '#6B7280' },
-                      grid: { stroke: 'none' },
-                    }}
-                    tickFormat={(t) => `D${t}`}
+                  color={colors.primary}
+                  thickness={3}
+                  dataPointsColor={colors.primary}
+                  dataPointsRadius={6}
+                  startFillColor={colors.primary}
+                  endFillColor={colors.primary}
+                  startOpacity={0.3}
+                  endOpacity={0.05}
+                  areaChart
+                  curved
+                  hideRules
+                  yAxisThickness={0}
+                  xAxisThickness={1}
+                  xAxisColor="#EAEAEA"
+                  xAxisLabelTextStyle={{ fontSize: 10, color: '#6B7280' }}
+                  yAxisTextStyle={{ fontSize: 10, color: '#9CA3AF' }}
+                  maxValue={35}
+                  noOfSections={5}
+                />
+                {/* Adet Süresi için ikinci çizgi */}
+                {periodHistoryData.length > 0 && (
+                  <LineChart
+                    data={periodHistoryData}
+                    width={width - 80}
+                    height={220}
+                    color={colors.lilac}
+                    thickness={2}
+                    dataPointsColor={colors.lilac}
+                    dataPointsRadius={4}
+                    startFillColor={colors.lilac}
+                    endFillColor={colors.lilac}
+                    startOpacity={0.2}
+                    endOpacity={0.05}
+                    areaChart
+                    curved
+                    hideRules
+                    yAxisThickness={0}
+                    xAxisThickness={0}
+                    maxValue={35}
+                    noOfSections={5}
                   />
-                  <VictoryAxis
-                    dependentAxis
-                    style={{
-                      axis: { stroke: 'none' },
-                      tickLabels: { fontSize: 10, fill: '#9CA3AF' },
-                      grid: { stroke: '#F3F4F6', strokeDasharray: '4' },
-                    }}
-                  />
-                  <VictoryLine
-                    data={cycleHistoryData.map(d => ({ x: d.x, y: d.cycleLength }))}
-                    style={{ data: { stroke: colors.primary, strokeWidth: 3 } }}
-                  />
-                  <VictoryScatter
-                    data={cycleHistoryData.map(d => ({ x: d.x, y: d.cycleLength }))}
-                    size={5}
-                    style={{ data: { fill: colors.primary } }}
-                  />
-                  <VictoryLine
-                    data={cycleHistoryData.map(d => ({ x: d.x, y: d.periodLength }))}
-                    style={{ data: { stroke: colors.lilac, strokeWidth: 3 } }}
-                  />
-                  <VictoryScatter
-                    data={cycleHistoryData.map(d => ({ x: d.x, y: d.periodLength }))}
-                    size={5}
-                    style={{ data: { fill: colors.lilac } }}
-                  />
-                </VictoryChart>
+                )}
                 {/* Legend */}
                 <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm, justifyContent: 'center' }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
