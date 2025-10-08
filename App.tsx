@@ -17,7 +17,9 @@ import SetupCycleLength from './src/screens/setup/SetupCycleLength';
 import MainTabs from './src/screens/navigation/MainTabs';
 import { setupNotificationListeners } from './src/services/notificationService';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import AuthGate from './src/components/AuthGate';
 import * as Notifications from 'expo-notifications';
+import { hasPIN, removePIN } from './src/services/pinService';
 
 // Notification handler - App bootstrap
 Notifications.setNotificationHandler({
@@ -107,10 +109,49 @@ function AppNavigator() {
 
 export default function App() {
   const [fontsLoaded] = useFonts({ Nunito_400Regular, Nunito_600SemiBold, Nunito_700Bold });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [checkingPIN, setCheckingPIN] = useState(true);
   
   const ThemedStatusBar = () => {
     const { isDark } = useTheme();
     return <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />;
+  };
+
+  // PIN kontrolü
+  useEffect(() => {
+    checkPINStatus();
+  }, []);
+
+  const checkPINStatus = async () => {
+    const pinExists = await hasPIN();
+    if (!pinExists) {
+      setIsAuthenticated(true);
+    }
+    setCheckingPIN(false);
+  };
+
+  const handleAuthSuccess = () => {
+    setIsAuthenticated(true);
+  };
+
+  const handleForgotPIN = () => {
+    Alert.alert(
+      'PIN\'i Unut',
+      'PIN\'i kaldırmak tüm verilerinizi silecektir. Bu işlem geri alınamaz!',
+      [
+        { text: 'İptal', style: 'cancel' },
+        {
+          text: 'Tüm Verileri Sil',
+          style: 'destructive',
+          onPress: async () => {
+            await removePIN();
+            // Store'u temizle (deleteAllData fonksiyonunu çağır)
+            setIsAuthenticated(true);
+            Alert.alert('Başarılı', 'PIN kaldırıldı ve tüm veriler silindi.');
+          },
+        },
+      ]
+    );
   };
   
   useEffect(() => {
@@ -125,14 +166,16 @@ export default function App() {
     return () => sub.remove();
   }, []);
   
-  if (!fontsLoaded) {
+  if (!fontsLoaded || checkingPIN) {
     return null;
   }
+
   // Global Text font
   // @ts-ignore
   if (!Text.defaultProps) Text.defaultProps = {};
   // @ts-ignore
   Text.defaultProps.style = [{ fontFamily: 'Nunito_400Regular' }];
+
   return (
     <SafeAreaProvider>
       <Provider store={store}>
@@ -140,9 +183,16 @@ export default function App() {
           <ThemeProvider>
             <ThemedStatusBar />
             <ErrorBoundary>
-              <NavigationContainer>
-                <AppNavigator />
-              </NavigationContainer>
+              {!isAuthenticated ? (
+                <AuthGate
+                  onSuccess={handleAuthSuccess}
+                  onForgotPIN={handleForgotPIN}
+                />
+              ) : (
+                <NavigationContainer>
+                  <AppNavigator />
+                </NavigationContainer>
+              )}
             </ErrorBoundary>
           </ThemeProvider>
         </PersistGate>

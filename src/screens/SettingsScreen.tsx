@@ -39,7 +39,9 @@ import DangerZoneCard from '../components/settings/DangerZoneCard';
 import NumericInputModal from '../components/settings/NumericInputModal';
 import SegmentedControl from '../components/settings/SegmentedControl';
 import PermissionBanner from '../components/settings/PermissionBanner';
+import PINSetupModal from '../components/PINSetupModal';
 import Toast from '../components/Toast';
+import { hasPIN, savePIN, removePIN } from '../services/pinService';
 import { 
   requestNotificationPermission, 
   scheduleNotifications, 
@@ -72,13 +74,22 @@ export default function SettingsScreen() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [scheduledCount, setScheduledCount] = useState(0);
+  const [pinEnabled, setPinEnabled] = useState(false);
+  const [showPINModal, setShowPINModal] = useState(false);
+  const [pinModalMode, setPinModalMode] = useState<'setup' | 'change' | 'remove'>('setup');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  // İzin kontrolü ve planlanan bildirim sayısı
+  // İzin kontrolü, planlanan bildirim sayısı ve PIN durumu
   useEffect(() => {
     checkPermissionStatus();
     updateScheduledCount();
+    checkPINStatus();
   }, [notificationSettings.enabled]);
+
+  const checkPINStatus = async () => {
+    const hasPinEnabled = await hasPIN();
+    setPinEnabled(hasPinEnabled);
+  };
 
   const checkPermissionStatus = async () => {
     if (notificationSettings.enabled) {
@@ -321,6 +332,51 @@ export default function SettingsScreen() {
   const formatReminderTime = () => {
     const { hour, minute } = notificationSettings.reminderTime || { hour: 9, minute: 0 };
     return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+  };
+
+  const handlePINPress = () => {
+    if (pinEnabled) {
+      // PIN varsa değiştir veya kaldır seçenekleri
+      Alert.alert(
+        'PIN Kilidi',
+        'Ne yapmak istersiniz?',
+        [
+          { text: 'İptal', style: 'cancel' },
+          { text: 'Değiştir', onPress: () => { setPinModalMode('change'); setShowPINModal(true); } },
+          { text: 'Kaldır', style: 'destructive', onPress: () => { setPinModalMode('remove'); setShowPINModal(true); } },
+        ]
+      );
+    } else {
+      // PIN yoksa kur
+      setPinModalMode('setup');
+      setShowPINModal(true);
+    }
+  };
+
+  const handlePINConfirm = async (pin: string) => {
+    if (pinModalMode === 'setup' || pinModalMode === 'change') {
+      const success = await savePIN(pin);
+      if (success) {
+        setPinEnabled(true);
+        setShowPINModal(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setToast({ message: pinModalMode === 'setup' ? 'PIN kuruldu' : 'PIN değiştirildi', type: 'success' });
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setToast({ message: 'PIN kaydedilemedi', type: 'error' });
+      }
+    } else if (pinModalMode === 'remove') {
+      const success = await removePIN();
+      if (success) {
+        setPinEnabled(false);
+        setShowPINModal(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setToast({ message: 'PIN kaldırıldı', type: 'success' });
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setToast({ message: 'PIN kaldırılamadı', type: 'error' });
+      }
+    }
   };
 
   const getThemeIcon = () => {
@@ -606,11 +662,12 @@ export default function SettingsScreen() {
           <SettingRow
             icon={<Shield size={20} color="#E94FA1" />}
             title="PIN Kilidi"
-            description="Uygulama açılışında PIN iste"
-            disabled
-            disabledText="Yakında"
+            description={pinEnabled ? 'Aktif • Uygulama açılışında PIN istenir' : 'Uygulama açılışında PIN iste'}
+            value={pinEnabled ? 'Kur/Değiştir' : 'Kur'}
+            onPress={handlePINPress}
             isLast
             accessibilityLabel="PIN Kilidi"
+            accessibilityHint={pinEnabled ? 'PIN değiştir veya kaldır' : 'PIN kur'}
           />
         </View>
 
@@ -948,6 +1005,14 @@ export default function SettingsScreen() {
           </View>
       </View>
       )}
+
+      {/* PIN Setup Modal */}
+      <PINSetupModal
+        visible={showPINModal}
+        mode={pinModalMode}
+        onConfirm={handlePINConfirm}
+        onCancel={() => setShowPINModal(false)}
+      />
 
       {/* Toast */}
       {toast && (
