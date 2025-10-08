@@ -21,8 +21,13 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { BarChart, LineChart, PieChart } from 'react-native-gifted-charts';
 import { format, subDays, isAfter, isBefore, parseISO } from 'date-fns';
 import { tr } from 'date-fns/locale';
-
-type FilterOption = '7days' | '1month' | '3months' | 'all';
+import { mapSymptomLabelsTR, mapMoodLabelsTR } from '../utils/symptomLabels';
+import { 
+  TimeRange, 
+  applyAllFilters, 
+  formatPeriodsForSelection 
+} from '../utils/reportsFilters';
+import ReportsFilterModal from '../components/ReportsFilterModal';
 
 const AI_ENABLED = false; // AI placeholder
 
@@ -35,57 +40,17 @@ export default function ReportsScreen({ navigation }: any) {
 
   const periods = useSelector((state: RootState) => state.periods);
   const logs = useSelector((state: RootState) => state.logs);
+  
   const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterOption>('all');
+  const [timeFilter, setTimeFilter] = useState<TimeRange>('all');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [menstruationOnly, setMenstruationOnly] = useState(false);
+  const [selectedPeriods, setSelectedPeriods] = useState<any[]>([]);
 
-  // Filtreleme - SADECE GEÇMİŞ
-  const filteredLogs = useMemo(() => {
-    const now = new Date();
-    let startDate: Date;
-
-    switch (filter) {
-      case '7days':
-        startDate = subDays(now, 7);
-        break;
-      case '1month':
-        startDate = subDays(now, 30);
-        break;
-      case '3months':
-        startDate = subDays(now, 90);
-        break;
-      default:
-        return logs.filter(log => isBefore(parseISO(log.date), now));
-    }
-
-    return logs.filter(log => {
-      const logDate = parseISO(log.date);
-      return isAfter(logDate, startDate) && isBefore(logDate, now);
-    });
-  }, [logs, filter]);
-
-  const filteredPeriods = useMemo(() => {
-    const now = new Date();
-    let startDate: Date;
-
-    switch (filter) {
-      case '7days':
-        startDate = subDays(now, 7);
-        break;
-      case '1month':
-        startDate = subDays(now, 30);
-        break;
-      case '3months':
-        startDate = subDays(now, 90);
-        break;
-      default:
-        return periods.filter(period => isBefore(parseISO(period.start), now));
-    }
-
-    return periods.filter(period => {
-      const periodDate = parseISO(period.start);
-      return isAfter(periodDate, startDate) && isBefore(periodDate, now);
-    });
-  }, [periods, filter]);
+  // Tüm filtreleri uygula
+  const { filteredLogs, filteredPeriods } = useMemo(() => {
+    return applyAllFilters(logs, periods, timeFilter, menstruationOnly, selectedPeriods);
+  }, [logs, periods, timeFilter, menstruationOnly, selectedPeriods]);
 
   const stats = useMemo(() => calculateCycleStats(filteredPeriods), [filteredPeriods]);
   const symptomFreq = useMemo(() => calculateSymptomFrequency(filteredLogs), [filteredLogs]);
@@ -94,7 +59,7 @@ export default function ReportsScreen({ navigation }: any) {
   const mostFrequentMood = useMemo(() => getMostFrequentMood(filteredLogs), [filteredLogs]);
   const insights = useMemo(() => generatePersonalInsights(filteredLogs, filteredPeriods), [filteredLogs, filteredPeriods]);
 
-  // Semptom dağılımı (top 5)
+  // Semptom dağılımı (top 5) - Türkçe etiketlerle
   const topSymptoms = useMemo(() => {
     const entries = Object.entries(symptomFreq);
     return entries
@@ -102,12 +67,14 @@ export default function ReportsScreen({ navigation }: any) {
       .slice(0, 5)
       .map(([symptom, freq]) => ({ 
         value: freq, 
-        label: symptom.length > 12 ? symptom.slice(0, 10) + '...' : symptom,
-        frontColor: '#E94FA1' // KPI rengi
+        label: mapSymptomLabelsTR(symptom).length > 12 
+          ? mapSymptomLabelsTR(symptom).slice(0, 10) + '...' 
+          : mapSymptomLabelsTR(symptom),
+        frontColor: '#E94FA1'
       }));
   }, [symptomFreq]);
 
-  // Ruh hali dağılımı (pie chart)
+  // Ruh hali dağılımı (pie chart) - Türkçe etiketlerle
   const moodDistribution = useMemo(() => {
     const moodCounts: Record<string, number> = {};
     filteredLogs.forEach(log => {
@@ -125,22 +92,11 @@ export default function ReportsScreen({ navigation }: any) {
       value: count,
       color: pastelColors[idx % pastelColors.length],
       text: `${Math.round((count / total) * 100)}%`,
+      label: mapMoodLabelsTR(mood),
     }));
   }, [filteredLogs]);
 
-  // Döngü geçmişi (line chart)
-  const cycleHistoryData = useMemo(() => {
-    return filteredPeriods
-      .filter(p => p.cycleLengthDays && p.periodLengthDays)
-      .slice(-8)
-      .map((p, idx) => ({
-        value: p.cycleLengthDays!,
-        label: `D${idx + 1}`,
-        dataPointText: p.cycleLengthDays!.toString(),
-      }));
-  }, [filteredPeriods]);
-
-  // Döngü geçmişi listesi (detaylı)
+  // Döngü geçmişi listesi (detaylı) - Türkçe tarih formatıyla
   const cycleHistoryList = useMemo(() => {
     return filteredPeriods
       .filter(p => p.start)
@@ -166,6 +122,11 @@ export default function ReportsScreen({ navigation }: any) {
     return () => clearTimeout(timer);
   }, [filteredPeriods, filteredLogs]);
 
+  const handleFilterApply = (filters: { menstruationOnly: boolean; selectedPeriods: any[] }) => {
+    setMenstruationOnly(filters.menstruationOnly);
+    setSelectedPeriods(filters.selectedPeriods);
+  };
+
   if (!hasSufficientData) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF9FB' }} edges={['top']}>
@@ -185,24 +146,22 @@ export default function ReportsScreen({ navigation }: any) {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingTop: insets.top + 12,
+          paddingTop: insets.top + 24,
           paddingHorizontal: 16,
-          paddingBottom: insets.bottom + 100,
+          paddingBottom: 24,
         }}
         showsVerticalScrollIndicator={false}
         removeClippedSubviews={true}
       >
-        {/* Gradient Header */}
+        {/* Başlık Kartı */}
         <LinearGradient
           colors={['#FFB6EC', '#D6A3FF']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={{
-            borderRadius: 20,
+            borderRadius: 14,
             padding: 16,
             marginBottom: 16,
-            minHeight: 120,
-            justifyContent: 'center',
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.05,
@@ -210,7 +169,7 @@ export default function ReportsScreen({ navigation }: any) {
             elevation: 2,
           }}
         >
-          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#FFF', marginTop: 10 }}>
+          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#FFF' }}>
             İstatistiklerim 📊
           </Text>
           <Text style={{ fontSize: 14, color: '#FFF', opacity: 0.9, marginTop: 8 }}>
@@ -218,66 +177,148 @@ export default function ReportsScreen({ navigation }: any) {
           </Text>
         </LinearGradient>
 
-        {/* Zaman Filtresi */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, marginBottom: 16 }}
-        >
-          {(['7days', '1month', '3months', 'all'] as FilterOption[]).map(option => {
-            const labels = { '7days': 'Son 7 gün', '1month': '1 ay', '3months': '3 ay', 'all': 'Tümü' };
-            const isActive = filter === option;
-            return (
-              <TouchableOpacity
-                key={option}
-                onPress={() => setFilter(option)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={{
-                  minHeight: 44,
-                  paddingVertical: 10,
-                  paddingHorizontal: 12,
-                  borderRadius: 20,
-                  backgroundColor: isActive ? '#E94FA1' : '#FFF',
-                  borderWidth: isActive ? 0 : 1,
-                  borderColor: '#E5E7EB',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.05,
-                  shadowRadius: 4,
-                  elevation: 1,
-                }}
-              >
-                {isActive ? (
-                  <LinearGradient
-                    colors={['#FFB6EC', '#D6A3FF']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      borderRadius: 20,
-                    }}
-                  />
-                ) : null}
-                <Text
+        {/* Zaman Filtreleri */}
+        <View style={{ marginBottom: 16 }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8 }}
+          >
+            {(['7days', '1month', '3months', 'all'] as TimeRange[]).map(option => {
+              const labels = { '7days': 'Son 7 gün', '1month': '1 ay', '3months': '3 ay', 'all': 'Tümü' };
+              const isActive = timeFilter === option;
+              return (
+                <TouchableOpacity
+                  key={option}
+                  onPress={() => setTimeFilter(option)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   style={{
-                    fontSize: 13,
-                    fontWeight: isActive ? '700' : '600',
-                    color: isActive ? '#FFF' : '#6B7280',
-                    zIndex: 1,
+                    minHeight: 44,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    borderRadius: 20,
+                    backgroundColor: isActive ? '#E94FA1' : '#FFF',
+                    borderWidth: isActive ? 0 : 1,
+                    borderColor: '#E5E7EB',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 4,
+                    elevation: 1,
                   }}
                 >
-                  📅 {labels[option]}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: isActive ? '700' : '600',
+                      color: isActive ? '#FFF' : '#6B7280',
+                    }}
+                  >
+                    📅 {labels[option]}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+            
+            {/* Filtre İkonu */}
+            <TouchableOpacity
+              onPress={() => setShowFilterModal(true)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{
+                minHeight: 44,
+                paddingVertical: 10,
+                paddingHorizontal: 12,
+                borderRadius: 20,
+                backgroundColor: '#FFF',
+                borderWidth: 1,
+                borderColor: '#E5E7EB',
+                justifyContent: 'center',
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 4,
+                elevation: 1,
+              }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#6B7280' }}>
+                🔍 Filtre
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+
+          {/* Seçili Filtre Rozetleri */}
+          {(menstruationOnly || selectedPeriods.length > 0) && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ marginTop: 8 }}
+              contentContainerStyle={{ gap: 8 }}
+            >
+              {menstruationOnly && (
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#FFE8F5',
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: '#E94FA1',
+                }}>
+                  <Text style={{ fontSize: 12, color: '#E94FA1', fontWeight: '600', marginRight: 4 }}>
+                    Sadece Adet Günleri
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setMenstruationOnly(false)}
+                    style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: 8,
+                      backgroundColor: '#E94FA1',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text style={{ color: '#FFF', fontSize: 10, fontWeight: 'bold' }}>×</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              {selectedPeriods.map((period, idx) => (
+                <View key={period.id} style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#FFE8F5',
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: '#E94FA1',
+                }}>
+                  <Text style={{ fontSize: 12, color: '#E94FA1', fontWeight: '600', marginRight: 4 }}>
+                    Dönem {idx + 1}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setSelectedPeriods(prev => prev.filter(p => p.id !== period.id))}
+                    style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: 8,
+                      backgroundColor: '#E94FA1',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text style={{ color: '#FFF', fontSize: 10, fontWeight: 'bold' }}>×</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </View>
 
         {isLoading ? (
           /* Loading Skeletons */
@@ -290,14 +331,14 @@ export default function ReportsScreen({ navigation }: any) {
           </>
         ) : (
           <>
-            {/* KPI Kartları - 2 Sütun Grid */}
+            {/* Özet Kartları (4+2 grid) */}
             <View style={{ marginBottom: 16 }}>
               {/* Row 1 */}
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
                 <View style={{ 
                   flex: 1, 
                   backgroundColor: '#FFF', 
-                  borderRadius: 20, 
+                  borderRadius: 14, 
                   padding: 16, 
                   minHeight: 95, 
                   justifyContent: 'center',
@@ -317,7 +358,7 @@ export default function ReportsScreen({ navigation }: any) {
                 <View style={{ 
                   flex: 1, 
                   backgroundColor: '#FFF', 
-                  borderRadius: 20, 
+                  borderRadius: 14, 
                   padding: 16, 
                   minHeight: 95, 
                   justifyContent: 'center',
@@ -341,7 +382,7 @@ export default function ReportsScreen({ navigation }: any) {
                 <View style={{ 
                   flex: 1, 
                   backgroundColor: '#FFF', 
-                  borderRadius: 20, 
+                  borderRadius: 14, 
                   padding: 16, 
                   minHeight: 95, 
                   justifyContent: 'center',
@@ -361,7 +402,7 @@ export default function ReportsScreen({ navigation }: any) {
                 <View style={{ 
                   flex: 1, 
                   backgroundColor: '#FFF', 
-                  borderRadius: 20, 
+                  borderRadius: 14, 
                   padding: 16, 
                   minHeight: 95, 
                   justifyContent: 'center',
@@ -385,7 +426,7 @@ export default function ReportsScreen({ navigation }: any) {
                 <View style={{ 
                   flex: 1, 
                   backgroundColor: '#FFF', 
-                  borderRadius: 20, 
+                  borderRadius: 14, 
                   padding: 16, 
                   minHeight: 95, 
                   justifyContent: 'center',
@@ -405,7 +446,7 @@ export default function ReportsScreen({ navigation }: any) {
                 <View style={{ 
                   flex: 1, 
                   backgroundColor: '#FFF', 
-                  borderRadius: 20, 
+                  borderRadius: 14, 
                   padding: 16, 
                   minHeight: 95, 
                   justifyContent: 'center',
@@ -425,32 +466,31 @@ export default function ReportsScreen({ navigation }: any) {
               </View>
             </View>
 
-            {/* En Sık Ruh Hali Kartı */}
+            {/* En Sık Ruh Hâli Kartı */}
             <View style={{ 
               backgroundColor: '#FCE7F3', 
-              borderRadius: 20, 
+              borderRadius: 14, 
               padding: 16, 
               marginBottom: 16, 
-              height: 70,
-              justifyContent: 'center',
-              alignItems: 'center',
               shadowColor: '#000',
               shadowOffset: { width: 0, height: 2 },
               shadowOpacity: 0.05,
               shadowRadius: 8,
               elevation: 2,
             }}>
-              <Text style={{ fontSize: 20, marginBottom: 8 }}>🥰</Text>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: '#E94FA1', textAlign: 'center' }}>
-                En Sık Ruh Hali: {mostFrequentMood}
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
+                En Sık Ruh Hâli ☁️
+              </Text>
+              <Text style={{ fontSize: 16, color: '#E94FA1', fontWeight: '600' }}>
+                {mostFrequentMood || 'Ruh hâli verisi bulunamadı.'}
               </Text>
             </View>
 
             {/* Semptom Dağılımı - Bar Chart */}
-            {topSymptoms.length > 0 && (
+            {topSymptoms.length > 0 ? (
               <View style={{ 
                 backgroundColor: '#FFF', 
-                borderRadius: 20, 
+                borderRadius: 14, 
                 padding: 16, 
                 marginBottom: 16,
                 shadowColor: '#000',
@@ -459,39 +499,71 @@ export default function ReportsScreen({ navigation }: any) {
                 shadowRadius: 8,
                 elevation: 2,
               }}>
-                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 10 }}>
-                  Semptom Dağılımı
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
+                  Semptom Dağılımı ✨
                 </Text>
-                <BarChart
-                  data={topSymptoms}
-                  width={width - 80}
-                  height={200}
-                  barWidth={width * 0.6 / topSymptoms.length}
-                  noOfSections={4}
-                  barBorderRadius={8}
-                  frontColor="#E94FA1"
-                  yAxisThickness={0}
-                  xAxisThickness={1}
-                  xAxisColor="#E5E7EB"
-                  hideRules
-                  showValuesAsTopLabel
-                  topLabelTextStyle={{ fontSize: 11, fontWeight: '600', color: '#1F2937' }}
-                  xAxisLabelTextStyle={{ fontSize: 10, color: '#6B7280', rotation: -15 }}
-                  maxValue={100}
-                />
-                <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 10, textAlign: 'center', fontStyle: 'italic' }}>
+                <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>
+                  En sık 5 semptom, yüzde oranlı
+                </Text>
+                
+                {/* Grafik Container - Overflow Hidden */}
+                <View style={{ 
+                  overflow: 'hidden', 
+                  borderRadius: 8,
+                  paddingTop: 12,
+                  paddingBottom: 8,
+                  paddingLeft: 12,
+                  paddingRight: 12,
+                }}>
+                  <BarChart
+                    data={topSymptoms}
+                    width={width - 80}
+                    height={200}
+                    barWidth={width * 0.6 / topSymptoms.length}
+                    noOfSections={4}
+                    barBorderRadius={8}
+                    frontColor="#E94FA1"
+                    yAxisThickness={0}
+                    xAxisThickness={1}
+                    xAxisColor="#E5E7EB"
+                    hideRules
+                    showValuesAsTopLabel
+                    topLabelTextStyle={{ fontSize: 11, fontWeight: '600', color: '#1F2937' }}
+                    xAxisLabelTextStyle={{ fontSize: 10, color: '#6B7280', rotation: -15 }}
+                    maxValue={100}
+                  />
+                </View>
+                
+                <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 12, textAlign: 'center', fontStyle: 'italic' }}>
                   En sık görülen: <Text style={{ fontWeight: '600', color: '#1F2937' }}>
                     {topSymptoms[0].label} ({topSymptoms[0].value}%)
                   </Text>
                 </Text>
               </View>
+            ) : (
+              <View style={{ 
+                backgroundColor: '#F9FAFB', 
+                borderRadius: 14, 
+                padding: 32, 
+                marginBottom: 16,
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.05,
+                shadowRadius: 8,
+                elevation: 2,
+              }}>
+                <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center' }}>
+                  Semptom kaydı bulunamadı.
+                </Text>
+              </View>
             )}
 
-            {/* Ruh Hali Dağılımı - Pie Chart */}
-            {moodDistribution.length > 0 && (
+            {/* Ruh Hâli Dağılımı - Donut Chart */}
+            {moodDistribution.length > 0 ? (
               <View style={{ 
                 backgroundColor: '#FFF', 
-                borderRadius: 20, 
+                borderRadius: 14, 
                 padding: 16, 
                 marginBottom: 16,
                 shadowColor: '#000',
@@ -500,10 +572,17 @@ export default function ReportsScreen({ navigation }: any) {
                 shadowRadius: 8,
                 elevation: 2,
               }}>
-                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 10 }}>
-                  Ruh Hali Dağılımı
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
+                  Ruh Hâli Dağılımı 🎨
                 </Text>
-                <View style={{ alignItems: 'center', marginVertical: 10 }}>
+                
+                {/* Grafik Container - Overflow Hidden */}
+                <View style={{ 
+                  overflow: 'hidden', 
+                  borderRadius: 8,
+                  alignItems: 'center', 
+                  marginVertical: 16,
+                }}>
                   <PieChart
                     data={moodDistribution}
                     donut
@@ -516,17 +595,35 @@ export default function ReportsScreen({ navigation }: any) {
                     )}
                   />
                 </View>
-                <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 10, textAlign: 'center' }}>
-                  ⚠️ Bu bilgiler geneldir; tıbbi tavsiye değildir.
+                
+                <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 16, textAlign: 'center' }}>
+                  ⚠️ Bu bilgiler geneldir; tıbbî tavsiye değildir.
+                </Text>
+              </View>
+            ) : (
+              <View style={{ 
+                backgroundColor: '#F9FAFB', 
+                borderRadius: 14, 
+                padding: 32, 
+                marginBottom: 16,
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.05,
+                shadowRadius: 8,
+                elevation: 2,
+              }}>
+                <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center' }}>
+                  Ruh hâli kaydı bulunamadı.
                 </Text>
               </View>
             )}
 
-            {/* Döngü Geçmişi Listesi */}
+            {/* Döngü Geçmişi 📅 */}
             {cycleHistoryList.length > 0 ? (
               <View style={{ 
                 backgroundColor: '#FFF', 
-                borderRadius: 20, 
+                borderRadius: 14, 
                 padding: 16, 
                 marginBottom: 16,
                 shadowColor: '#000',
@@ -536,7 +633,7 @@ export default function ReportsScreen({ navigation }: any) {
                 elevation: 2,
               }}>
                 <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
-                  Döngü Geçmişi
+                  Döngü Geçmişi 📅
                 </Text>
                 {cycleHistoryList.map((item, idx) => (
                   <View
@@ -559,7 +656,7 @@ export default function ReportsScreen({ navigation }: any) {
             ) : (
               <View style={{ 
                 backgroundColor: '#FCE7F3', 
-                borderRadius: 20, 
+                borderRadius: 14, 
                 padding: 32, 
                 marginBottom: 16, 
                 alignItems: 'center',
@@ -569,20 +666,19 @@ export default function ReportsScreen({ navigation }: any) {
                 shadowRadius: 8,
                 elevation: 2,
               }}>
-                <Text style={{ fontSize: 48, marginBottom: 16 }}>💭</Text>
                 <Text style={{ fontSize: 14, fontWeight: '600', color: '#1F2937', textAlign: 'center', marginBottom: 8 }}>
-                  Henüz döngü verisi yok.
+                  Bu aralık için veri yok.
                 </Text>
                 <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center' }}>
-                  Günlük kayıt ekleyerek istatistik oluşturabilirsin.
+                  Farklı bir zaman aralığı seçebilirsin.
                 </Text>
               </View>
             )}
 
-            {/* Kişisel Öneriler */}
+            {/* Kişisel Öneriler 🌸 */}
             <View style={{ 
               backgroundColor: '#FFEAF7', 
-              borderRadius: 20, 
+              borderRadius: 14, 
               padding: 16, 
               marginBottom: 16,
               shadowColor: '#000',
@@ -593,7 +689,7 @@ export default function ReportsScreen({ navigation }: any) {
             }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937' }}>
-                  Kişisel Öneriler
+                  Kişisel Öneriler 🌸
                 </Text>
                 <View
                   style={{
@@ -611,10 +707,10 @@ export default function ReportsScreen({ navigation }: any) {
               </Text>
             </View>
 
-            {/* Tahmin Sistemi */}
+            {/* Tahmin Sistemi 🎯 */}
             <View style={{ 
               backgroundColor: '#F3E8FF', 
-              borderRadius: 20, 
+              borderRadius: 14, 
               padding: 16, 
               marginBottom: 16,
               shadowColor: '#000',
@@ -627,7 +723,7 @@ export default function ReportsScreen({ navigation }: any) {
                 🎯 Tahmin Sistemi
               </Text>
               <Text style={{ fontSize: 14, color: '#6B7280', lineHeight: 20, marginBottom: 12 }}>
-                {t('reports.prediction.description')}
+                Döngülerinizi takip ettikçe doğruluk artacaktır. Daha fazla veri gerekiyor…
               </Text>
               {stats.totalCycles >= 3 ? (
                 <>
@@ -674,7 +770,7 @@ export default function ReportsScreen({ navigation }: any) {
             {stats.totalCycles >= 2 && (
               <View style={{ 
                 backgroundColor: '#FFF', 
-                borderRadius: 20, 
+                borderRadius: 14, 
                 padding: 16, 
                 marginBottom: 16,
                 shadowColor: '#000',
@@ -700,6 +796,18 @@ export default function ReportsScreen({ navigation }: any) {
             )}
           </>
         )}
+
+        {/* Filter Modal */}
+        <ReportsFilterModal
+          visible={showFilterModal}
+          onClose={() => setShowFilterModal(false)}
+          onApply={handleFilterApply}
+          periods={periods}
+          initialFilters={{
+            menstruationOnly,
+            selectedPeriods,
+          }}
+        />
       </ScrollView>
     </SafeAreaView>
   );
