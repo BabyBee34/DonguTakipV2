@@ -1,5 +1,6 @@
 import { DailyLog, PeriodSpan } from '../types';
 import { format, subDays, isAfter, isBefore, parseISO, isWithinInterval } from 'date-fns';
+import { tr } from 'date-fns/locale';
 
 export type TimeRange = '7days' | '1month' | '3months' | 'all';
 
@@ -125,7 +126,7 @@ export function formatPeriodsForSelection(periods: PeriodSpan[]) {
       id: p.id,
       start: p.start,
       end: p.end || '',
-      label: `${format(parseISO(p.start), 'd MMM yyyy', { locale: require('date-fns/locale/tr') })} – ${p.end ? format(parseISO(p.end), 'd MMM yyyy', { locale: require('date-fns/locale/tr') }) : 'Devam ediyor'}`,
+      label: `${format(parseISO(p.start), 'd MMM yyyy', { locale: tr })} – ${p.end ? format(parseISO(p.end), 'd MMM yyyy', { locale: tr }) : 'Devam ediyor'}`,
       cycleLength: p.cycleLengthDays || 0,
       periodLength: p.periodLengthDays || 0,
     }));
