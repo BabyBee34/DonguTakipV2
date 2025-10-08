@@ -24,7 +24,6 @@ import { tr } from 'date-fns/locale';
 
 type FilterOption = '7days' | '1month' | '3months' | 'all';
 
-const TABBAR_HEIGHT = 84;
 const AI_ENABLED = false; // AI placeholder
 
 export default function ReportsScreen({ navigation }: any) {
@@ -104,9 +103,9 @@ export default function ReportsScreen({ navigation }: any) {
       .map(([symptom, freq]) => ({ 
         value: freq, 
         label: symptom.length > 12 ? symptom.slice(0, 10) + '...' : symptom,
-        frontColor: colors.primary 
+        frontColor: '#E94FA1' // KPI rengi
       }));
-  }, [symptomFreq, colors]);
+  }, [symptomFreq]);
 
   // Ruh hali dağılımı (pie chart)
   const moodDistribution = useMemo(() => {
@@ -118,23 +117,13 @@ export default function ReportsScreen({ navigation }: any) {
     });
 
     const total = Object.values(moodCounts).reduce((sum, count) => sum + count, 0);
-    const moodMap: Record<string, string> = {
-      ecstatic: '🤩 Harika',
-      happy: '😊 Mutlu',
-      calm: '😌 Sakin',
-      neutral: '😐 Normal',
-      tired: '😴 Yorgun',
-      sad: '😢 Üzgün',
-      anxious: '😰 Endişeli',
-      irritable: '😠 Sinirli',
-      angry: '😡 Kızgın',
-    };
-
-    const colors = ['#FFB6EC', '#D6A3FF', '#CFF8EE', '#FFD86B', '#FFDCE7', '#B3B3FF', '#FFC7DB', '#FFB3CC', '#FF9999'];
+    
+    // 3 pastel ton geçişli renk paleti
+    const pastelColors = ['#FFB6EC', '#D6A3FF', '#CFF8EE'];
     
     return Object.entries(moodCounts).map(([mood, count], idx) => ({
       value: count,
-      color: colors[idx % colors.length],
+      color: pastelColors[idx % pastelColors.length],
       text: `${Math.round((count / total) * 100)}%`,
     }));
   }, [filteredLogs]);
@@ -148,17 +137,6 @@ export default function ReportsScreen({ navigation }: any) {
         value: p.cycleLengthDays!,
         label: `D${idx + 1}`,
         dataPointText: p.cycleLengthDays!.toString(),
-      }));
-  }, [filteredPeriods]);
-
-  const periodHistoryData = useMemo(() => {
-    return filteredPeriods
-      .filter(p => p.cycleLengthDays && p.periodLengthDays)
-      .slice(-8)
-      .map((p, idx) => ({
-        value: p.periodLengthDays!,
-        label: `D${idx + 1}`,
-        dataPointText: p.periodLengthDays!.toString(),
       }));
   }, [filteredPeriods]);
 
@@ -190,7 +168,7 @@ export default function ReportsScreen({ navigation }: any) {
 
   if (!hasSufficientData) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF9FB' }} edges={['top']}>
         <EmptyState
           emoji="📊"
           title={t('reports.emptyState.title')}
@@ -203,15 +181,16 @@ export default function ReportsScreen({ navigation }: any) {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF6FB' }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF9FB' }} edges={['top']}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingTop: insets.top + 8,
-          paddingHorizontal: spacing.lg,
-          paddingBottom: TABBAR_HEIGHT + 24,
+          paddingTop: insets.top + 12,
+          paddingHorizontal: 16,
+          paddingBottom: insets.bottom + 100,
         }}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews={true}
       >
         {/* Gradient Header */}
         <LinearGradient
@@ -220,26 +199,30 @@ export default function ReportsScreen({ navigation }: any) {
           end={{ x: 1, y: 1 }}
           style={{
             borderRadius: 20,
-            padding: spacing.xl,
+            padding: 16,
             marginBottom: 16,
             minHeight: 120,
             justifyContent: 'center',
-            ...shadows.card,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.05,
+            shadowRadius: 8,
+            elevation: 2,
           }}
         >
-          <Text style={{ fontSize: 28, fontWeight: '700', color: '#FFF' }}>
+          <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#FFF', marginTop: 10 }}>
             İstatistiklerim 📊
           </Text>
-          <Text style={{ fontSize: 14, color: '#FFF', opacity: 0.9, marginTop: spacing.xs }}>
+          <Text style={{ fontSize: 14, color: '#FFF', opacity: 0.9, marginTop: 8 }}>
             Adet döngüsü, ruh hali ve semptomların analizi
           </Text>
         </LinearGradient>
 
-        {/* Tarih Filtresi */}
+        {/* Zaman Filtresi */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: spacing.sm, marginBottom: 12 }}
+          contentContainerStyle={{ gap: 8, marginBottom: 16 }}
         >
           {(['7days', '1month', '3months', 'all'] as FilterOption[]).map(option => {
             const labels = { '7days': 'Son 7 gün', '1month': '1 ay', '3months': '3 ay', 'all': 'Tümü' };
@@ -251,21 +234,42 @@ export default function ReportsScreen({ navigation }: any) {
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 style={{
                   minHeight: 44,
-                  paddingVertical: spacing.sm,
-                  paddingHorizontal: spacing.md,
+                  paddingVertical: 10,
+                  paddingHorizontal: 12,
                   borderRadius: 20,
-                  backgroundColor: isActive ? colors.primary : colors.bg,
+                  backgroundColor: isActive ? '#E94FA1' : '#FFF',
                   borderWidth: isActive ? 0 : 1,
-                  borderColor: '#EAEAEA',
+                  borderColor: '#E5E7EB',
                   justifyContent: 'center',
                   alignItems: 'center',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 4,
+                  elevation: 1,
                 }}
               >
+                {isActive ? (
+                  <LinearGradient
+                    colors={['#FFB6EC', '#D6A3FF']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      borderRadius: 20,
+                    }}
+                  />
+                ) : null}
                 <Text
                   style={{
                     fontSize: 13,
                     fontWeight: isActive ? '700' : '600',
                     color: isActive ? '#FFF' : '#6B7280',
+                    zIndex: 1,
                   }}
                 >
                   📅 {labels[option]}
@@ -278,379 +282,421 @@ export default function ReportsScreen({ navigation }: any) {
         {isLoading ? (
           /* Loading Skeletons */
           <>
-            <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm }}>
-              <View style={{ flex: 1 }}><SkeletonLoader type="rect" width="100%" height={110} /></View>
-              <View style={{ flex: 1 }}><SkeletonLoader type="rect" width="100%" height={110} /></View>
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+              <View style={{ flex: 1 }}><SkeletonLoader type="rect" width="100%" height={95} /></View>
+              <View style={{ flex: 1 }}><SkeletonLoader type="rect" width="100%" height={95} /></View>
             </View>
-            <View style={{ marginBottom: spacing.lg }}><SkeletonLoader type="rect" width="100%" height={250} /></View>
+            <View style={{ marginBottom: 16 }}><SkeletonLoader type="rect" width="100%" height={250} /></View>
           </>
         ) : (
           <>
-            {/* KPI Kartları - 2×N Grid */}
+            {/* KPI Kartları - 2 Sütun Grid */}
             <View style={{ marginBottom: 16 }}>
               {/* Row 1 */}
-              <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm }}>
-                <Card style={{ flex: 1, alignItems: 'center', padding: spacing.md, minHeight: 110, justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 28, fontWeight: '600', color: stats.avgCycleLength > 0 ? colors.primary : '#9CA3AF' }}>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                <View style={{ 
+                  flex: 1, 
+                  backgroundColor: '#FFF', 
+                  borderRadius: 20, 
+                  padding: 16, 
+                  minHeight: 95, 
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 8,
+                  elevation: 2,
+                }}>
+                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: stats.avgCycleLength > 0 ? '#E94FA1' : '#9CA3AF' }}>
                     {stats.avgCycleLength > 0 ? stats.avgCycleLength : '—'}
                   </Text>
-                  <Text style={{ fontSize: 12, color: colors.inkSoft, marginTop: 4, textAlign: 'center' }}>Ortalama Döngü</Text>
-                  <Text style={{ fontSize: 11, color: colors.inkLight }}>gün</Text>
-                </Card>
-                <Card style={{ flex: 1, alignItems: 'center', padding: spacing.md, minHeight: 110, justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 28, fontWeight: '600', color: stats.avgPeriodLength > 0 ? colors.primary : '#9CA3AF' }}>
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' }}>Ortalama Döngü</Text>
+                  <Text style={{ fontSize: 10, color: '#9CA3AF' }}>gün</Text>
+                </View>
+                <View style={{ 
+                  flex: 1, 
+                  backgroundColor: '#FFF', 
+                  borderRadius: 20, 
+                  padding: 16, 
+                  minHeight: 95, 
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 8,
+                  elevation: 2,
+                }}>
+                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: stats.avgPeriodLength > 0 ? '#E94FA1' : '#9CA3AF' }}>
                     {stats.avgPeriodLength > 0 ? stats.avgPeriodLength : '—'}
                   </Text>
-                  <Text style={{ fontSize: 12, color: colors.inkSoft, marginTop: 4, textAlign: 'center' }}>Adet Süresi</Text>
-                  <Text style={{ fontSize: 11, color: colors.inkLight }}>gün</Text>
-                </Card>
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' }}>Adet Süresi</Text>
+                  <Text style={{ fontSize: 10, color: '#9CA3AF' }}>gün</Text>
+                </View>
               </View>
 
               {/* Row 2 */}
-              <View style={{ flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm }}>
-                <Card style={{ flex: 1, alignItems: 'center', padding: spacing.md, minHeight: 110, justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 28, fontWeight: '600', color: stats.totalCycles > 0 ? colors.primary : '#9CA3AF' }}>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                <View style={{ 
+                  flex: 1, 
+                  backgroundColor: '#FFF', 
+                  borderRadius: 20, 
+                  padding: 16, 
+                  minHeight: 95, 
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 8,
+                  elevation: 2,
+                }}>
+                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: stats.totalCycles > 0 ? '#E94FA1' : '#9CA3AF' }}>
                     {stats.totalCycles > 0 ? stats.totalCycles : '—'}
                   </Text>
-                  <Text style={{ fontSize: 12, color: colors.inkSoft, marginTop: 4, textAlign: 'center' }}>Takip Edilen</Text>
-                  <Text style={{ fontSize: 11, color: colors.inkLight }}>döngü</Text>
-                </Card>
-                <Card style={{ flex: 1, alignItems: 'center', padding: spacing.md, minHeight: 110, justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 28, fontWeight: '600', color: stats.lastCycleLength ? colors.primary : '#9CA3AF' }}>
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' }}>Takip Edilen</Text>
+                  <Text style={{ fontSize: 10, color: '#9CA3AF' }}>döngü</Text>
+                </View>
+                <View style={{ 
+                  flex: 1, 
+                  backgroundColor: '#FFF', 
+                  borderRadius: 20, 
+                  padding: 16, 
+                  minHeight: 95, 
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 8,
+                  elevation: 2,
+                }}>
+                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: stats.lastCycleLength ? '#E94FA1' : '#9CA3AF' }}>
                     {stats.lastCycleLength || '—'}
                   </Text>
-                  <Text style={{ fontSize: 12, color: colors.inkSoft, marginTop: 4, textAlign: 'center' }}>Son Döngü</Text>
-                  <Text style={{ fontSize: 11, color: colors.inkLight }}>gün</Text>
-                </Card>
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' }}>Son Döngü</Text>
+                  <Text style={{ fontSize: 10, color: '#9CA3AF' }}>gün</Text>
+                </View>
               </View>
 
               {/* Row 3 */}
-              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                <Card style={{ flex: 1, alignItems: 'center', padding: spacing.md, minHeight: 110, justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 24, fontWeight: '600', color: minMaxCycles.min > 0 ? colors.primary : '#9CA3AF' }}>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ 
+                  flex: 1, 
+                  backgroundColor: '#FFF', 
+                  borderRadius: 20, 
+                  padding: 16, 
+                  minHeight: 95, 
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 8,
+                  elevation: 2,
+                }}>
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: minMaxCycles.min > 0 ? '#E94FA1' : '#9CA3AF' }}>
                     {minMaxCycles.min > 0 ? `${minMaxCycles.min}–${minMaxCycles.max}` : '—'}
                   </Text>
-                  <Text style={{ fontSize: 12, color: colors.inkSoft, marginTop: 4, textAlign: 'center' }}>En Kısa/Uzun</Text>
-                  <Text style={{ fontSize: 11, color: colors.inkLight }}>gün</Text>
-                </Card>
-                <Card style={{ flex: 1, alignItems: 'center', padding: spacing.md, minHeight: 110, justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 28, fontWeight: '600', color: avgSymptoms > 0 ? colors.primary : '#9CA3AF' }}>
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' }}>En Kısa/Uzun</Text>
+                  <Text style={{ fontSize: 10, color: '#9CA3AF' }}>gün</Text>
+                </View>
+                <View style={{ 
+                  flex: 1, 
+                  backgroundColor: '#FFF', 
+                  borderRadius: 20, 
+                  padding: 16, 
+                  minHeight: 95, 
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 8,
+                  elevation: 2,
+                }}>
+                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: avgSymptoms > 0 ? '#E94FA1' : '#9CA3AF' }}>
                     {avgSymptoms > 0 ? avgSymptoms : '—'}
                   </Text>
-                  <Text style={{ fontSize: 12, color: colors.inkSoft, marginTop: 4, textAlign: 'center' }}>Ort. Semptom</Text>
-                  <Text style={{ fontSize: 11, color: colors.inkLight }}>/ döngü</Text>
-                </Card>
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' }}>Ort. Semptom</Text>
+                  <Text style={{ fontSize: 10, color: '#9CA3AF' }}>/ döngü</Text>
+                </View>
               </View>
             </View>
 
-            {/* En Sık Ruh Hali */}
-            <Card backgroundColor={colors.primary200} style={{ marginBottom: 16, padding: spacing.md }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View>
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: colors.ink }}>En Sık Ruh Hali 💭</Text>
-                  <Text style={{ fontSize: 20, fontWeight: '700', color: colors.primary, marginTop: 4 }}>
-                    {mostFrequentMood}
-                  </Text>
-                </View>
-              </View>
-            </Card>
+            {/* En Sık Ruh Hali Kartı */}
+            <View style={{ 
+              backgroundColor: '#FCE7F3', 
+              borderRadius: 20, 
+              padding: 16, 
+              marginBottom: 16, 
+              height: 70,
+              justifyContent: 'center',
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 8,
+              elevation: 2,
+            }}>
+              <Text style={{ fontSize: 20, marginBottom: 8 }}>🥰</Text>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#E94FA1', textAlign: 'center' }}>
+                En Sık Ruh Hali: {mostFrequentMood}
+              </Text>
+            </View>
 
             {/* Semptom Dağılımı - Bar Chart */}
             {topSymptoms.length > 0 && (
-              <Card backgroundColor={colors.bgSoft} style={{ marginBottom: 16 }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.ink, marginBottom: spacing.sm }}>
-                  Semptom Dağılımı 💫
-                </Text>
-                <Text style={{ fontSize: 13, color: colors.inkSoft, marginBottom: spacing.md }}>
-                  En sık 5 semptom, yüzde oranlı
+              <View style={{ 
+                backgroundColor: '#FFF', 
+                borderRadius: 20, 
+                padding: 16, 
+                marginBottom: 16,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.05,
+                shadowRadius: 8,
+                elevation: 2,
+              }}>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 10 }}>
+                  Semptom Dağılımı
                 </Text>
                 <BarChart
                   data={topSymptoms}
                   width={width - 80}
-                  height={220}
+                  height={200}
                   barWidth={width * 0.6 / topSymptoms.length}
                   noOfSections={4}
                   barBorderRadius={8}
-                  frontColor={colors.primary}
+                  frontColor="#E94FA1"
                   yAxisThickness={0}
                   xAxisThickness={1}
-                  xAxisColor="#EAEAEA"
+                  xAxisColor="#E5E7EB"
                   hideRules
                   showValuesAsTopLabel
-                  topLabelTextStyle={{ fontSize: 11, fontWeight: '600', color: colors.ink }}
+                  topLabelTextStyle={{ fontSize: 11, fontWeight: '600', color: '#1F2937' }}
                   xAxisLabelTextStyle={{ fontSize: 10, color: '#6B7280', rotation: -15 }}
                   maxValue={100}
                 />
-                {topSymptoms.length > 0 && (
-                  <Text style={{ fontSize: 12, color: colors.inkLight, marginTop: spacing.sm, textAlign: 'center' }}>
-                    En sık görülen: <Text style={{ fontWeight: '700', color: colors.ink }}>
-                      {topSymptoms[0].label} ({topSymptoms[0].value}%)
-                    </Text>
+                <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 10, textAlign: 'center', fontStyle: 'italic' }}>
+                  En sık görülen: <Text style={{ fontWeight: '600', color: '#1F2937' }}>
+                    {topSymptoms[0].label} ({topSymptoms[0].value}%)
                   </Text>
-                )}
-              </Card>
+                </Text>
+              </View>
             )}
 
             {/* Ruh Hali Dağılımı - Pie Chart */}
             {moodDistribution.length > 0 && (
-              <Card backgroundColor={colors.bgSoft} style={{ marginBottom: 16 }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.ink, marginBottom: spacing.sm }}>
-                  Ruh Hali Dağılımı 🎨
+              <View style={{ 
+                backgroundColor: '#FFF', 
+                borderRadius: 20, 
+                padding: 16, 
+                marginBottom: 16,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.05,
+                shadowRadius: 8,
+                elevation: 2,
+              }}>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 10 }}>
+                  Ruh Hali Dağılımı
                 </Text>
-                <Text style={{ fontSize: 13, color: colors.inkSoft, marginBottom: spacing.md }}>
-                  Ruh hali kategorilerine göre kayıt sayısı
-                </Text>
-                <View style={{ alignItems: 'center', marginVertical: spacing.md }}>
+                <View style={{ alignItems: 'center', marginVertical: 10 }}>
                   <PieChart
                     data={moodDistribution}
                     donut
                     radius={80}
                     innerRadius={50}
                     centerLabelComponent={() => (
-                      <Text style={{ fontSize: 20, fontWeight: '700', color: colors.ink }}>
+                      <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937' }}>
                         {moodDistribution.reduce((sum, d) => sum + d.value, 0)}
                       </Text>
                     )}
                   />
                 </View>
-                <Text style={{ fontSize: 11, color: colors.inkLight, marginTop: spacing.xs, textAlign: 'center' }}>
+                <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 10, textAlign: 'center' }}>
                   ⚠️ Bu bilgiler geneldir; tıbbi tavsiye değildir.
                 </Text>
-              </Card>
-            )}
-
-            {/* Döngü Uzunluğu Geçmişi - Line Chart */}
-            {cycleHistoryData.length > 0 && (
-              <Card backgroundColor={colors.bgSoft} style={{ marginBottom: 16 }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.ink, marginBottom: spacing.sm }}>
-                  Döngü Uzunluğu Geçmişi 📈
-                </Text>
-                <Text style={{ fontSize: 13, color: colors.inkSoft, marginBottom: spacing.md }}>
-                  Son döngülerdeki değişimler (sadece geçmiş)
-                </Text>
-                <LineChart
-                  data={cycleHistoryData}
-                  width={width - 80}
-                  height={220}
-                  color={colors.primary}
-                  thickness={3}
-                  dataPointsColor={colors.primary}
-                  dataPointsRadius={6}
-                  startFillColor={colors.primary}
-                  endFillColor={colors.primary}
-                  startOpacity={0.3}
-                  endOpacity={0.05}
-                  areaChart
-                  curved
-                  hideRules
-                  yAxisThickness={0}
-                  xAxisThickness={1}
-                  xAxisColor="#EAEAEA"
-                  xAxisLabelTextStyle={{ fontSize: 10, color: '#6B7280' }}
-                  yAxisTextStyle={{ fontSize: 10, color: '#9CA3AF' }}
-                  maxValue={35}
-                  noOfSections={5}
-                />
-                {/* Adet Süresi için ikinci çizgi */}
-                {periodHistoryData.length > 0 && (
-                  <LineChart
-                    data={periodHistoryData}
-                    width={width - 80}
-                    height={220}
-                    color={colors.lilac}
-                    thickness={2}
-                    dataPointsColor={colors.lilac}
-                    dataPointsRadius={4}
-                    startFillColor={colors.lilac}
-                    endFillColor={colors.lilac}
-                    startOpacity={0.2}
-                    endOpacity={0.05}
-                    areaChart
-                    curved
-                    hideRules
-                    yAxisThickness={0}
-                    xAxisThickness={0}
-                    maxValue={35}
-                    noOfSections={5}
-                  />
-                )}
-                {/* Legend */}
-                <View style={{ flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm, justifyContent: 'center' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: colors.primary }} />
-                    <Text style={{ fontSize: 11, color: colors.inkSoft }}>Döngü Uzunluğu</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: colors.lilac }} />
-                    <Text style={{ fontSize: 11, color: colors.inkSoft }}>Adet Süresi</Text>
-                  </View>
-                </View>
-              </Card>
+              </View>
             )}
 
             {/* Döngü Geçmişi Listesi */}
-            {cycleHistoryList.length > 0 && (
-              <Card backgroundColor={colors.bgSoft} style={{ marginBottom: 16 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.ink }}>
-                    Döngü Geçmişi 📅
-                  </Text>
-                </View>
+            {cycleHistoryList.length > 0 ? (
+              <View style={{ 
+                backgroundColor: '#FFF', 
+                borderRadius: 20, 
+                padding: 16, 
+                marginBottom: 16,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.05,
+                shadowRadius: 8,
+                elevation: 2,
+              }}>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
+                  Döngü Geçmişi
+                </Text>
                 {cycleHistoryList.map((item, idx) => (
                   <View
                     key={item.id}
                     style={{
-                      paddingVertical: spacing.md,
-                      borderTopWidth: idx > 0 ? 1 : 0,
-                      borderTopColor: colors.bgGray,
+                      paddingVertical: 16,
+                      borderBottomWidth: idx < cycleHistoryList.length - 1 ? 1 : 0,
+                      borderBottomColor: '#E5E7EB',
                     }}
                   >
-                    <Text style={{ fontSize: 14, fontWeight: '600', color: colors.ink }}>
-                      {item.start} — {item.end}
+                    <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#1F2937' }}>
+                      {item.start} – {item.end}
                     </Text>
-                    <Text style={{ fontSize: 12, color: colors.inkSoft, marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
                       Döngü: {item.cycleLength} gün • Adet: {item.periodLength} gün
                     </Text>
                   </View>
                 ))}
-              </Card>
-            )}
-
-            {cycleHistoryList.length === 0 && (
-              <Card backgroundColor={colors.bgSoft} style={{ marginBottom: 16, alignItems: 'center', padding: spacing.xl }}>
-                <Text style={{ fontSize: 48, marginBottom: spacing.sm }}>📅</Text>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: colors.inkSoft, textAlign: 'center' }}>
-                  Henüz veri yok
-                </Text>
-                <Text style={{ fontSize: 12, color: colors.inkLight, textAlign: 'center', marginTop: 4 }}>
-                  Günlükten kayıt ekle
-                </Text>
-              </Card>
-            )}
-
-            {/* Kişisel Öneriler - AI Placeholder */}
-            <Card backgroundColor="#FFE8F5" style={{ marginBottom: 16 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.ink }}>
-                  Kişisel Öneriler 🌸
-                </Text>
-                {!AI_ENABLED && (
-                  <View
-                    style={{
-                      backgroundColor: colors.rose,
-                      borderRadius: 12,
-                      paddingHorizontal: 10,
-                      paddingVertical: 4,
-                    }}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: colors.ink }}>YAKINDA</Text>
-                  </View>
-                )}
               </View>
-              {AI_ENABLED ? (
-                <>
-                  {insights.map((insight, idx) => (
-                    <View
-                      key={idx}
-                      style={{
-                        flexDirection: 'row',
-                        marginBottom: spacing.sm,
-                        backgroundColor: colors.bg,
-                        padding: spacing.md,
-                        borderRadius: borderRadius.card / 2,
-                      }}
-                    >
-                      <Text style={{ fontSize: 18, marginRight: spacing.sm }}>💡</Text>
-                      <Text
-                        style={{
-                          flex: 1,
-                          fontSize: 14,
-                          color: colors.ink,
-                          lineHeight: 20,
-                        }}
-                      >
-                        {insight}
-                      </Text>
-                    </View>
-                  ))}
-                  <Text style={{ fontSize: 11, color: colors.inkLight, marginTop: spacing.sm, textAlign: 'center' }}>
-                    ⚠️ Bu bilgiler geneldir; tıbbi tavsiye değildir.
-                  </Text>
-                </>
-              ) : (
-                <Text style={{ fontSize: 14, color: colors.inkSoft, lineHeight: 20 }}>
-                  Ruh halin ve semptomlarına göre kişisel öneriler burada görünecek.
+            ) : (
+              <View style={{ 
+                backgroundColor: '#FCE7F3', 
+                borderRadius: 20, 
+                padding: 32, 
+                marginBottom: 16, 
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.05,
+                shadowRadius: 8,
+                elevation: 2,
+              }}>
+                <Text style={{ fontSize: 48, marginBottom: 16 }}>💭</Text>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1F2937', textAlign: 'center', marginBottom: 8 }}>
+                  Henüz döngü verisi yok.
                 </Text>
-              )}
-            </Card>
+                <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center' }}>
+                  Günlük kayıt ekleyerek istatistik oluşturabilirsin.
+                </Text>
+              </View>
+            )}
 
-            {/* Tahmin Doğruluğu */}
-            <Card backgroundColor={colors.primary200}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.ink, marginBottom: spacing.sm }}>
-                {t('reports.prediction.title')}
+            {/* Kişisel Öneriler */}
+            <View style={{ 
+              backgroundColor: '#FFEAF7', 
+              borderRadius: 20, 
+              padding: 16, 
+              marginBottom: 16,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 8,
+              elevation: 2,
+            }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937' }}>
+                  Kişisel Öneriler
+                </Text>
+                <View
+                  style={{
+                    backgroundColor: '#E94FA1',
+                    borderRadius: 12,
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                  }}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#FFF' }}>YAKINDA</Text>
+                </View>
+              </View>
+              <Text style={{ fontSize: 14, color: '#4B5563', lineHeight: 20 }}>
+                Ruh halin ve semptomlarına göre kişisel öneriler burada görünecek.
               </Text>
-              <Text style={{ fontSize: 14, color: colors.inkSoft, lineHeight: 20, marginBottom: spacing.sm }}>
+            </View>
+
+            {/* Tahmin Sistemi */}
+            <View style={{ 
+              backgroundColor: '#F3E8FF', 
+              borderRadius: 20, 
+              padding: 16, 
+              marginBottom: 16,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 8,
+              elevation: 2,
+            }}>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 12 }}>
+                🎯 Tahmin Sistemi
+              </Text>
+              <Text style={{ fontSize: 14, color: '#6B7280', lineHeight: 20, marginBottom: 12 }}>
                 {t('reports.prediction.description')}
               </Text>
               {stats.totalCycles >= 3 ? (
                 <>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: spacing.md }}>
-                    <Text style={{ fontSize: 32, fontWeight: '700', color: colors.primary, marginRight: spacing.sm }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#E94FA1', marginRight: 8 }}>
                       %{stats.predictionAccuracy}
                     </Text>
                   </View>
-                  <View style={{ marginTop: spacing.md, height: 8, backgroundColor: colors.bgGray, borderRadius: 4, overflow: 'hidden' }}>
+                  <View style={{ marginBottom: 12, height: 8, backgroundColor: '#E5E7EB', borderRadius: 4, overflow: 'hidden' }}>
                     <View
                       style={{
                         height: '100%',
                         width: `${stats.predictionAccuracy}%`,
-                        backgroundColor: colors.primary,
+                        backgroundColor: '#E94FA1',
                       }}
                     />
                   </View>
-                  <Text style={{ fontSize: 12, color: colors.inkLight, marginTop: spacing.xs }}>
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>
                     {t('reports.prediction.calculating', { count: 3 })}
                   </Text>
 
                   <View
                     style={{
-                      marginTop: spacing.md,
-                      padding: spacing.md,
-                      backgroundColor: colors.info + '20',
+                      padding: 12,
+                      backgroundColor: '#E0E7FF',
                       borderLeftWidth: 3,
-                      borderLeftColor: colors.info,
-                      borderRadius: borderRadius.card / 2,
+                      borderLeftColor: '#3B82F6',
+                      borderRadius: 8,
                     }}
                   >
-                    <Text style={{ fontSize: 12, color: colors.ink, lineHeight: 18 }}>
+                    <Text style={{ fontSize: 12, color: '#1F2937', lineHeight: 18 }}>
                       ℹ️ {t('reports.prediction.explanation')}
                     </Text>
                   </View>
                 </>
               ) : (
-                <Text style={{ fontSize: 14, fontWeight: '600', color: colors.inkSoft }}>
-                  {t('reports.prediction.insufficient')}
+                <Text style={{ fontSize: 14, fontWeight: '500', color: '#6B7280' }}>
+                  Daha fazla veri gerekiyor…
                 </Text>
               )}
-            </Card>
+            </View>
 
             {/* Döngü Değişkenliği */}
             {stats.totalCycles >= 2 && (
-              <Card backgroundColor={colors.bgSoft} style={{ marginTop: spacing.md }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.ink, marginBottom: spacing.sm }}>
+              <View style={{ 
+                backgroundColor: '#FFF', 
+                borderRadius: 20, 
+                padding: 16, 
+                marginBottom: 16,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.05,
+                shadowRadius: 8,
+                elevation: 2,
+              }}>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 12 }}>
                   📊 Döngü Düzenliliği
                 </Text>
-                <Text style={{ fontSize: 14, color: colors.inkSoft, lineHeight: 20 }}>
-                  Döngü değişkenliği: <Text style={{ fontWeight: '600', color: colors.ink }}>±{stats.cycleVariability} gün</Text>
+                <Text style={{ fontSize: 14, color: '#6B7280', lineHeight: 20, marginBottom: 8 }}>
+                  Döngü değişkenliği: <Text style={{ fontWeight: '600', color: '#1F2937' }}>±{stats.cycleVariability} gün</Text>
                 </Text>
-                <Text style={{ fontSize: 12, color: colors.inkLight, marginTop: spacing.xs }}>
+                <Text style={{ fontSize: 12, color: '#6B7280' }}>
                   {stats.cycleVariability < 3
                     ? 'Çok düzenli döngüleriniz var! 🌟'
                     : stats.cycleVariability < 5
                     ? 'Döngüleriniz oldukça düzenli 👍'
                     : 'Döngülerinizde değişkenlik var, bu normal olabilir'}
                 </Text>
-              </Card>
+              </View>
             )}
           </>
         )}
