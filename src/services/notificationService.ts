@@ -95,22 +95,22 @@ export async function cancelNotificationByType(type: NotificationType): Promise<
 }
 
 /**
- * Bildirimleri planla
+ * Bildirimleri planla (Redux store'dan bağımsız - settings parametresi ile)
  */
 export async function scheduleNotifications(
-  settings: NotificationSettings,
+  settings?: NotificationSettings,
   nextPeriodDate?: string
 ): Promise<void> {
   // Önce tüm mevcut bildirimleri iptal et
   await cancelAllScheduledNotificationsAsync();
 
-  if (!settings.enabled) {
+  // Settings parametresi yoksa çık
+  if (!settings || !settings.enabled) {
     return;
   }
 
   const permissionGranted = await requestNotificationPermission();
   if (!permissionGranted) {
-    // İzin verilmediyse sessizce çıkmak yerine üst katmanların kullanıcıyı bilgilendirmesi için erken dön
     console.warn('Bildirim izni verilmedi');
     return;
   }

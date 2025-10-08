@@ -106,9 +106,13 @@ export default function SettingsScreen() {
     if (value) {
       const granted = await requestNotificationPermission();
       if (granted) {
-        dispatch(setNotificationSettings({ ...notificationSettings, enabled: true }));
+        const newSettings = { ...notificationSettings, enabled: true };
+        dispatch(setNotificationSettings(newSettings));
         dispatch(setPermissionGranted(true));
-        await scheduleNotifications();
+        
+        // Bildirimleri planla
+        await scheduleNotifications(newSettings as any);
+        
         setPermissionDenied(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setToast({ message: 'Bildirimler açıldı', type: 'success' });
@@ -133,18 +137,17 @@ export default function SettingsScreen() {
     const hours = date.getHours();
     const minutes = date.getMinutes();
     
-    // Önce eski planları iptal et
-    await cancelAllScheduledNotificationsAsync();
-    
     // Yeni ayarı kaydet
-    dispatch(setNotificationSettings({ 
+    const newSettings = { 
       ...notificationSettings, 
       reminderTime: { hour: hours, minute: minutes } 
-    }));
+    };
+    dispatch(setNotificationSettings(newSettings));
     
-    // Yeni planları oluştur
+    // Önce eski planları iptal et, sonra yeni planları oluştur
     if (notificationSettings.enabled) {
-      await scheduleNotifications();
+      await cancelAllScheduledNotificationsAsync();
+      await scheduleNotifications(newSettings as any);
     }
     
     setShowTimePicker(false);
@@ -156,23 +159,22 @@ export default function SettingsScreen() {
   }, [dispatch, notificationSettings]);
 
   const handleUpcomingPeriodDaysChange = useCallback(async (days: number) => {
-    // Önce eski planları iptal et
-    await cancelAllScheduledNotificationsAsync();
-    
     // Yeni ayarı kaydet
-    dispatch(setNotificationSettings({ 
+    const newSettings = { 
       ...notificationSettings, 
       upcomingPeriodDays: days as 0 | 1 | 2 | 3 | 5 | 7
-    }));
+    };
+    dispatch(setNotificationSettings(newSettings));
     
-    // Yeni planları oluştur
+    // Önce eski planları iptal et, sonra yeni planları oluştur
     if (notificationSettings.enabled && days > 0) {
-      await scheduleNotifications();
+      await cancelAllScheduledNotificationsAsync();
+      await scheduleNotifications(newSettings as any);
     }
     
     setShowDaysPicker(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setToast({ message: `${days} gün önce bildirim gönderilecek`, type: 'success' });
+    setToast({ message: days === 0 ? 'Adet bildirimi kapatıldı' : `${days} gün önce bildirim gönderilecek`, type: 'success' });
   }, [dispatch, notificationSettings]);
 
   const handleThemeChange = useCallback((value: string) => {

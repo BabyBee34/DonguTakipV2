@@ -1,6 +1,6 @@
 ﻿import 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
-import { Text, BackHandler, Alert, StatusBar } from 'react-native';
+import { Text, BackHandler, Alert, StatusBar, Platform } from 'react-native';
 import { useFonts, Nunito_400Regular, Nunito_600SemiBold, Nunito_700Bold } from '@expo-google-fonts/nunito';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -17,6 +17,26 @@ import SetupCycleLength from './src/screens/setup/SetupCycleLength';
 import MainTabs from './src/screens/navigation/MainTabs';
 import { setupNotificationListeners } from './src/services/notificationService';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import * as Notifications from 'expo-notifications';
+
+// Notification handler - App bootstrap
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+
+// Android notification channel setup
+if (Platform.OS === 'android') {
+  Notifications.setNotificationChannelAsync('default', {
+    name: 'Genel',
+    importance: Notifications.AndroidImportance.DEFAULT,
+    vibrationPattern: [0, 100, 50, 100],
+    lightColor: '#FF4FA0',
+  });
+}
 
 const Stack = createNativeStackNavigator();
 

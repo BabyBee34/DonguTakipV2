@@ -32,9 +32,16 @@
       "package": "com.cyclemate.app",
       "permissions": [
         "NOTIFICATIONS",
+        "POST_NOTIFICATIONS",
+        "VIBRATE",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE"
       ],
+      "useNextNotificationsApi": true,
+      "notification": {
+        "icon": "./assets/icon.png",
+        "color": "#FF4FA0"
+      },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
