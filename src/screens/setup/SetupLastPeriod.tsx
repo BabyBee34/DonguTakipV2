@@ -81,7 +81,7 @@ export default function SetupLastPeriod({ navigation }: any) {
             <Text style={[styles.dateText, { color: date ? '#333' : '#999' }]}>
               {date ? formatDate(date) : t('setup.lastPeriod.selectDate')}
             </Text>
-            <Icon name="calendar-outline" size={24} color="#FF99CC" />
+            <Icon name="calendar" size={24} color="#FF99CC" />
           </TouchableOpacity>
           
           {/* Help Button */}
