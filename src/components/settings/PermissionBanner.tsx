@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
-import { AlertTriangle } from 'phosphor-react-native';
+import { Warning } from 'phosphor-react-native';
 import * as Haptics from 'expo-haptics';
 
 interface PermissionBannerProps {
@@ -16,7 +16,7 @@ export default function PermissionBanner({ onOpenSettings }: PermissionBannerPro
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <AlertTriangle size={20} color="#D97706" weight="fill" />
+        <Warning size={20} color="#D97706" weight="fill" />
         <View style={styles.textContainer}>
           <Text style={styles.title}>Bildirim izni verilmedi</Text>
           <Text style={styles.description}>
