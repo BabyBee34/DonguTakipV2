@@ -42,6 +42,14 @@ Notifications.setNotificationHandler({
 });
 
 /**
+ * Bildirim izni kontrol et
+ */
+export async function checkNotificationPermission(): Promise<boolean> {
+  const { status } = await Notifications.getPermissionsAsync();
+  return status === 'granted';
+}
+
+/**
  * Bildirim izni iste
  */
 export async function requestNotificationPermission(): Promise<boolean> {
