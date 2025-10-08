@@ -1,5 +1,5 @@
 ﻿import 'react-native-gesture-handler';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Text, BackHandler, Alert, StatusBar, Platform } from 'react-native';
 import { useFonts, Nunito_400Regular, Nunito_600SemiBold, Nunito_700Bold } from '@expo-google-fonts/nunito';
 import { NavigationContainer } from '@react-navigation/native';
