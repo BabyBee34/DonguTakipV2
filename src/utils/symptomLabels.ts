@@ -713,3 +713,4 @@ export const moodLabelsTR: Record<string, string> = {
 export function mapMoodLabelsTR(key: string): string {
   return moodLabelsTR[key] || key;
 }
+

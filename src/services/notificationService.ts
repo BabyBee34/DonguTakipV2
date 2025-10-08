@@ -139,7 +139,8 @@ export async function scheduleNotifications(
  */
 async function scheduleDailyLogReminders(settings: NotificationSettings): Promise<void> {
   const { frequency, reminderTime } = settings;
-  const [hours, minutes] = reminderTime.split(':').map(Number);
+  const hours = reminderTime.hour;
+  const minutes = reminderTime.minute;
 
   let intervals: number[] = [];
   switch (frequency) {

@@ -45,3 +45,4 @@ export function validateBackupSchema(data: any): data is BackupData {
   if (!Array.isArray(data.cycles)) return false;
   return true;
 }
+

@@ -58,15 +58,16 @@ export interface PeriodSpan {
 
 export interface NotificationSettings {
   enabled: boolean;
-  frequency: 'low' | 'balanced' | 'high';
-  reminderTime: string;
-  periodReminder: boolean;
-  waterReminder: boolean;
-  dailyLogReminder: boolean;
+  frequency?: 'low' | 'balanced' | 'high';
+  reminderTime: { hour: number; minute: number };
+  upcomingPeriodDays: 0 | 1 | 2 | 3 | 5 | 7;
+  periodReminder?: boolean;
+  waterReminder?: boolean;
+  dailyLogReminder?: boolean;
 }
 
 export interface AppSettings {
-  theme: 'light' | 'dark';
+  theme: 'light' | 'dark' | 'system';
   language: 'tr' | 'en';
   pinLock: boolean;
   pinCode?: string;

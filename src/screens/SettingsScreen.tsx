@@ -22,7 +22,7 @@ import {
   Bell, 
   Moon, 
   Sun,
-  Smartphone,
+  DeviceMobile,
   Lock, 
   Download, 
   Upload, 
@@ -59,10 +59,12 @@ export default function SettingsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
 
   const prefs = useSelector((state: RootState) => state.prefs);
-  const notificationSettings = useSelector((state: RootState) => state.notification);
+  const notificationSettings = useSelector((state: RootState) => state.notification.settings);
+  const notificationState = useSelector((state: RootState) => state.notification);
   const settings = useSelector((state: RootState) => state.settings);
   const logs = useSelector((state: RootState) => state.logs);
   const periods = useSelector((state: RootState) => state.periods);
+  const app = useSelector((state: RootState) => state.app);
 
   // Local states
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -84,7 +86,7 @@ export default function SettingsScreen() {
     checkPermissionStatus();
     updateScheduledCount();
     checkPINStatus();
-  }, [notificationSettings.enabled]);
+  }, [notificationSettings?.enabled]);
 
   const checkPINStatus = async () => {
     const hasPinEnabled = await hasPIN();
@@ -92,7 +94,7 @@ export default function SettingsScreen() {
   };
 
   const checkPermissionStatus = async () => {
-    if (notificationSettings.enabled) {
+    if (notificationSettings?.enabled) {
       const hasPermission = await checkNotificationPermission();
       setPermissionDenied(!hasPermission);
     } else {
@@ -101,7 +103,7 @@ export default function SettingsScreen() {
   };
 
   const updateScheduledCount = async () => {
-    if (notificationSettings.enabled) {
+    if (notificationSettings?.enabled) {
       const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
       setScheduledCount(scheduledNotifications.length);
     } else {
@@ -169,7 +171,7 @@ export default function SettingsScreen() {
     dispatch(setNotificationSettings(newSettings));
     
     // Önce eski planları iptal et, sonra yeni planları oluştur
-    if (notificationSettings.enabled) {
+    if (notificationSettings?.enabled) {
       await cancelAllScheduledNotificationsAsync();
       await scheduleNotifications(newSettings as any);
       await updateScheduledCount();
@@ -192,7 +194,7 @@ export default function SettingsScreen() {
     dispatch(setNotificationSettings(newSettings));
     
     // Önce eski planları iptal et, sonra yeni planları oluştur
-    if (notificationSettings.enabled && days > 0) {
+    if (notificationSettings?.enabled && days > 0) {
       await cancelAllScheduledNotificationsAsync();
       await scheduleNotifications(newSettings as any);
       await updateScheduledCount();
@@ -222,11 +224,11 @@ export default function SettingsScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const entireState: RootState = {
                 prefs,
-        notification: notificationSettings,
+        notification: notificationState,
         settings,
         logs,
                 periods,
-        app: { isOnboardingComplete: true },
+        app,
       };
       const fileUri = await exportDataToFile(entireState);
       
@@ -244,7 +246,7 @@ export default function SettingsScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setToast({ message: 'Dışa aktarım başarısız', type: 'error' });
     }
-  }, [prefs, notificationSettings, settings, logs, periods]);
+  }, [prefs, notificationState, settings, logs, periods, app]);
 
   const handleImportData = useCallback(async () => {
     try {
@@ -262,11 +264,11 @@ export default function SettingsScreen() {
           // Verileri birleştir
           const currentState: RootState = {
             prefs,
-            notification: notificationSettings,
+            notification: notificationState,
             settings,
             logs,
             periods,
-            app: { isOnboardingComplete: true },
+            app,
           };
           const mergedData = mergeImportedData(currentState, importResult.data);
           
@@ -290,7 +292,7 @@ export default function SettingsScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setToast({ message: error.message || 'İçe aktarım başarısız', type: 'error' });
     }
-  }, [prefs, notificationSettings, settings, logs, periods, dispatch]);
+  }, [prefs, notificationState, settings, logs, periods, app, dispatch]);
 
   const handleDeleteAllData = useCallback(() => {
     setShowDeleteConfirm(true);
@@ -314,10 +316,10 @@ export default function SettingsScreen() {
       }));
       dispatch(setNotificationSettings({
         enabled: false,
-        permissionGranted: false,
         reminderTime: { hour: 9, minute: 0 },
         upcomingPeriodDays: 2,
       }));
+      dispatch(setPermissionGranted(false));
       
       setShowDeleteConfirm(false);
       setDeleteConfirmText('');
@@ -330,7 +332,11 @@ export default function SettingsScreen() {
   }, [deleteConfirmText, dispatch]);
 
   const formatReminderTime = () => {
-    const { hour, minute } = notificationSettings.reminderTime || { hour: 9, minute: 0 };
+    if (!notificationSettings?.reminderTime) {
+      return '09:00';
+    }
+    
+    const { hour = 9, minute = 0 } = notificationSettings.reminderTime;
     return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
   };
 
@@ -383,7 +389,7 @@ export default function SettingsScreen() {
     const theme = settings.theme || 'system';
     if (theme === 'light') return <Sun size={22} color="#E94FA1" weight="fill" />;
     if (theme === 'dark') return <Moon size={22} color="#E94FA1" weight="fill" />;
-    return <Smartphone size={22} color="#E94FA1" />;
+    return <DeviceMobile size={22} color="#E94FA1" />;
   };
 
   return (
@@ -522,10 +528,10 @@ export default function SettingsScreen() {
           <SettingRow
             icon={<Bell size={20} color="#E94FA1" />}
             title="Bildirimleri Aç"
-            description={notificationSettings.enabled 
+            description={notificationSettings?.enabled 
               ? `Açık${scheduledCount > 0 ? ` • ${scheduledCount} bildirim planlandı` : ''}` 
               : 'Kapalı'}
-            switchValue={notificationSettings.enabled}
+            switchValue={notificationSettings?.enabled}
             onSwitchChange={handleNotificationToggle}
             accessibilityLabel="Bildirimleri Aç"
           />
@@ -536,8 +542,8 @@ export default function SettingsScreen() {
             description="Günlük hatırlatma saati"
             value={formatReminderTime()}
             onPress={() => setShowTimePicker(true)}
-            disabled={!notificationSettings.enabled}
-            disabledText={!notificationSettings.enabled ? 'Bildirimler kapalı' : undefined}
+            disabled={!notificationSettings?.enabled}
+            disabledText={!notificationSettings?.enabled ? 'Bildirimler kapalı' : undefined}
             accessibilityLabel="Hatırlatma Saati"
             accessibilityHint="Saat seçici açmak için dokun"
           />
@@ -545,11 +551,11 @@ export default function SettingsScreen() {
           <SettingRow
             icon={<Info size={20} color="#E94FA1" />}
             title="Yaklaşan Adet Bildirimi"
-            description={`Adet başlamadan ${notificationSettings.upcomingPeriodDays || 2} gün önce haber ver`}
-            value={`${notificationSettings.upcomingPeriodDays || 2} gün`}
+            description={`Adet başlamadan ${notificationSettings?.upcomingPeriodDays ?? 2} gün önce haber ver`}
+            value={`${notificationSettings?.upcomingPeriodDays ?? 2} gün`}
             onPress={() => setShowDaysPicker(true)}
-            disabled={!notificationSettings.enabled}
-            disabledText={!notificationSettings.enabled ? 'Bildirimler kapalı' : undefined}
+            disabled={!notificationSettings?.enabled}
+            disabledText={!notificationSettings?.enabled ? 'Bildirimler kapalı' : undefined}
             isLast
             accessibilityLabel="Yaklaşan Adet Bildirimi"
             accessibilityHint="Gün sayısı seçmek için dokun"
@@ -806,7 +812,12 @@ export default function SettingsScreen() {
         mode="time"
         onConfirm={handleReminderTimeChange}
         onCancel={() => setShowTimePicker(false)}
-        date={new Date(0, 0, 0, notificationSettings.reminderTime?.hour || 9, notificationSettings.reminderTime?.minute || 0)}
+        date={(() => {
+          const rt = notificationSettings?.reminderTime;
+          const hour = rt?.hour ?? 9;
+          const minute = rt?.minute ?? 0;
+          return new Date(0, 0, 0, hour, minute);
+        })()}
         is24Hour={true}
         locale="tr_TR"
       />
@@ -861,28 +872,32 @@ export default function SettingsScreen() {
             <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2937', marginBottom: 16, textAlign: 'center' }}>
               Kaç gün önce bildirim?
             </Text>
-            {[0, 1, 2, 3, 5, 7].map((days) => (
-              <TouchableOpacity
-                key={days}
-                onPress={() => handleUpcomingPeriodDaysChange(days)}
-                style={{
-                  paddingVertical: 16,
-                  paddingHorizontal: 20,
-                  borderRadius: 12,
-                  backgroundColor: (notificationSettings.upcomingPeriodDays || 2) === days ? '#FFE8F5' : '#F9FAFB',
-                  marginBottom: 8,
-                }}
-              >
-                <Text style={{
-                  fontSize: 15,
-                  fontWeight: (notificationSettings.upcomingPeriodDays || 2) === days ? '600' : '500',
-                  color: (notificationSettings.upcomingPeriodDays || 2) === days ? '#E94FA1' : '#6B7280',
-                  textAlign: 'center',
-                }}>
-                  {days === 0 ? 'Kapalı' : `${days} gün önce`}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {[0, 1, 2, 3, 5, 7].map((days) => {
+              const currentDays = notificationSettings?.upcomingPeriodDays ?? 2;
+              const isSelected = currentDays === days;
+              return (
+                <TouchableOpacity
+                  key={days}
+                  onPress={() => handleUpcomingPeriodDaysChange(days)}
+                  style={{
+                    paddingVertical: 16,
+                    paddingHorizontal: 20,
+                    borderRadius: 12,
+                    backgroundColor: isSelected ? '#FFE8F5' : '#F9FAFB',
+                    marginBottom: 8,
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 15,
+                    fontWeight: isSelected ? '600' : '500',
+                    color: isSelected ? '#E94FA1' : '#6B7280',
+                    textAlign: 'center',
+                  }}>
+                    {days === 0 ? 'Kapalı' : `${days} gün önce`}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
             <TouchableOpacity
               onPress={() => setShowDaysPicker(false)}
               style={{
@@ -1019,7 +1034,7 @@ export default function SettingsScreen() {
         <Toast
           message={toast.message}
           type={toast.type}
-          onDismiss={() => setToast(null)}
+          onHide={() => setToast(null)}
         />
       )}
     </SafeAreaView>

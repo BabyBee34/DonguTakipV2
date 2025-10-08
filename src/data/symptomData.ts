@@ -275,3 +275,4 @@ export function getSymptomInfo(id: string): SymptomInfo | undefined {
   }
   return undefined;
 }
+

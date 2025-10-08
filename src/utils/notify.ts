@@ -109,3 +109,4 @@ export async function getScheduledNotificationCount(): Promise<number> {
   const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
   return scheduledNotifications.length;
 }
+

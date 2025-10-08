@@ -331,3 +331,4 @@ export default function DailyLogScreen({ route, navigation }: any) {
     </>
   );
 }
+

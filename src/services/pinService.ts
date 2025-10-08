@@ -138,3 +138,4 @@ export async function authenticateWithBiometric(): Promise<boolean> {
     return false;
   }
 }
+
