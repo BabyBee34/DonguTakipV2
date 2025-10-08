@@ -49,6 +49,19 @@ import {
 import { exportDataToFile, importDataFromFile, mergeImportedData } from '../services/backupService';
 import * as Notifications from 'expo-notifications';
 
+// DEBUG: Component import kontrolü
+console.log('Component imports:', {
+  SettingRow: typeof SettingRow,
+  LabeledSlider: typeof LabeledSlider,
+  DangerZoneCard: typeof DangerZoneCard,
+  NumericInputModal: typeof NumericInputModal,
+  SegmentedControl: typeof SegmentedControl,
+  PermissionBanner: typeof PermissionBanner,
+  PINSetupModal: typeof PINSetupModal,
+  Toast: typeof Toast,
+  DateTimePickerModal: typeof DateTimePickerModal,
+});
+
 export default function SettingsScreen() {
   const { colors, spacing, borderRadius, shadows, isDark, toggleTheme, setThemeMode } = useTheme();
   const { t } = useTranslation();
