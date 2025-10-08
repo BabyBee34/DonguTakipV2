@@ -1,12 +1,12 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Drop, FootSteps, ArmchairSimple, Shower } from 'phosphor-react-native';
+import { Drop, Footprints, Armchair, Shower } from 'phosphor-react-native';
 
 const HABITS = [
   { key: 'water', label: 'Su içtim', Icon: Drop },
-  { key: 'walk', label: 'Kısa yürüyüş', Icon: FootSteps },
-  { key: 'rest', label: 'Dinlenme molası', Icon: ArmchairSimple },
+  { key: 'walk', label: 'Kısa yürüyüş', Icon: Footprints },
+  { key: 'rest', label: 'Dinlenme molası', Icon: Armchair },
   { key: 'shower', label: 'Ilık duş', Icon: Shower },
 ];
 
