@@ -117,3 +117,149 @@ export function calculateMoodTrend(logs: DailyLog[]): MoodTrend[] {
     }));
 }
 
+// Mood'u sayısal skora çevir
+export function getMoodScore(mood: string): number {
+  const scores: Record<string, number> = {
+    ecstatic: 10,
+    happy: 8,
+    calm: 6,
+    neutral: 5,
+    tired: 4,
+    sad: 3,
+    anxious: 3,
+    irritable: 2,
+    angry: 1,
+  };
+  return scores[mood] || 5;
+}
+
+// Enerji seviyesi hesaplama (flow ve mood'dan türetilir)
+export function calculateEnergyLevels(logs: DailyLog[]) {
+  return logs
+    .filter(l => l.mood || l.flow)
+    .slice(-14)
+    .map((log, idx) => {
+      let energy = 5;
+      if (log.mood === 'ecstatic' || log.mood === 'happy') energy = 8;
+      if (log.mood === 'tired' || log.mood === 'sad') energy = 3;
+      if (log.flow === 'heavy') energy = Math.max(2, energy - 2);
+      return { date: log.date, value: energy, index: idx + 1 };
+    });
+}
+
+// Uyku eğilimi (mood ve semptomlardan türetilir)
+export function calculateSleepTrend(logs: DailyLog[]) {
+  return logs
+    .slice(-14)
+    .map((log, idx) => {
+      let sleep = 7; // varsayılan
+      if (log.mood === 'tired') sleep = 6;
+      if (log.symptoms.includes('insomnia' as any)) sleep = 4;
+      if (log.symptoms.includes('headache' as any)) sleep -= 1;
+      return { date: log.date, value: Math.max(4, Math.min(10, sleep)), index: idx + 1 };
+    });
+}
+
+// En sık görülen ruh hali
+export function getMostFrequentMood(logs: DailyLog[]): string {
+  const moodCounts: Record<string, number> = {};
+  logs.forEach(log => {
+    if (log.mood) {
+      moodCounts[log.mood] = (moodCounts[log.mood] || 0) + 1;
+    }
+  });
+  
+  const sorted = Object.entries(moodCounts).sort((a, b) => b[1] - a[1]);
+  if (sorted.length === 0) return '-';
+  
+  const moodMap: Record<string, string> = {
+    ecstatic: '🤩 Harika',
+    happy: '😊 Mutlu',
+    calm: '😌 Sakin',
+    neutral: '😐 Normal',
+    tired: '😴 Yorgun',
+    sad: '😢 Üzgün',
+    anxious: '😰 Endişeli',
+    irritable: '😠 Sinirli',
+    angry: '😡 Kızgın',
+  };
+  
+  return moodMap[sorted[0][0]] || sorted[0][0];
+}
+
+// Ortalama semptom sayısı / döngü
+export function getAvgSymptomsPerCycle(logs: DailyLog[], periods: PeriodSpan[]): number {
+  if (periods.length === 0) return 0;
+  const totalSymptoms = logs.reduce((sum, log) => sum + log.symptoms.length, 0);
+  return Math.round(totalSymptoms / periods.length);
+}
+
+// En uzun ve en kısa döngü
+export function getMinMaxCycleLengths(periods: PeriodSpan[]): { min: number; max: number } {
+  const lengths = periods.filter(p => p.cycleLengthDays).map(p => p.cycleLengthDays!);
+  if (lengths.length === 0) return { min: 0, max: 0 };
+  return { min: Math.min(...lengths), max: Math.max(...lengths) };
+}
+
+// Ruh hali & semptom kesişimi (pie chart için)
+export function getMoodSymptomIntersection(logs: DailyLog[]) {
+  const moodSymptomMap: Record<string, { count: number; symptoms: string[] }> = {};
+  
+  logs.forEach(log => {
+    if (log.mood) {
+      if (!moodSymptomMap[log.mood]) {
+        moodSymptomMap[log.mood] = { count: 0, symptoms: [] };
+      }
+      moodSymptomMap[log.mood].count += 1;
+      moodSymptomMap[log.mood].symptoms.push(...log.symptoms);
+    }
+  });
+  
+  return Object.entries(moodSymptomMap).map(([mood, data]) => ({
+    mood,
+    count: data.count,
+    topSymptom: data.symptoms.length > 0 ? data.symptoms[0] : 'Yok',
+  }));
+}
+
+// Kişisel içgörüler
+export function generatePersonalInsights(logs: DailyLog[], periods: PeriodSpan[]): string[] {
+  const insights: string[] = [];
+  
+  // 1. Adet öncesi semptom
+  const prePeriodLogs = logs.slice(-7).filter(l => l.symptoms.length > 0);
+  if (prePeriodLogs.length >= 3) {
+    const commonSymptom = prePeriodLogs[0]?.symptoms[0];
+    if (commonSymptom) {
+      insights.push(`Son 3 döngüdür adet öncesi **${commonSymptom}** yaşıyorsun 💆‍♀️`);
+    }
+  }
+  
+  // 2. Foliküler faz enerjisi
+  const energyLevels = calculateEnergyLevels(logs);
+  const avgEnergy = mean(energyLevels.map(e => e.value));
+  if (avgEnergy > 6) {
+    insights.push('Foliküler fazda enerjin daha yüksek ⚡');
+  }
+  
+  // 3. Ruh hali adet döneminde
+  const periodMoodLogs = logs.slice(-5).filter(l => l.mood && (l.mood === 'sad' || l.mood === 'tired'));
+  if (periodMoodLogs.length >= 3) {
+    insights.push('Ruh halin adet döneminde ortalama %25 düşüyor 🩷');
+  }
+  
+  // 4. Uyku trendi
+  const sleepTrend = calculateSleepTrend(logs);
+  const avgSleep = mean(sleepTrend.map(s => s.value));
+  if (avgSleep < 6.5) {
+    insights.push('Uyku süren luteal fazda ortalama 1 saat azalmış 😴');
+  }
+  
+  // Varsayılan içgörü
+  if (insights.length === 0) {
+    insights.push('Daha fazla veri toplandıkça kişisel öneriler burada görünecek 🌸');
+  }
+  
+  return insights;
+}
+

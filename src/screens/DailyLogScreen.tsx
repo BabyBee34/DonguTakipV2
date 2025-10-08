@@ -57,48 +57,6 @@ export default function DailyLogScreen({ route, navigation }: any) {
   const [isSaving, setIsSaving] = useState(false);
 
   const hasChanges = mood || symptoms.length > 0 || habits.length > 0 || note.trim();
-  
-  // CTA dinamik bottom pozisyonu
-  const CTA_HEIGHT = 60;
-  const ctaBottom = insets.bottom + tabBarHeight + 12;
-  
-  // Klavye animasyonu için translateY
-  const ctaTranslateY = useRef(new Animated.Value(0)).current;
-
-  // Klavye listener'ları
-  useEffect(() => {
-    const showListener = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (e: KeyboardEvent) => {
-        const keyboardHeight = e.endCoordinates.height;
-        const targetBottom = insets.bottom + tabBarHeight + 12;
-        const overlap = keyboardHeight - targetBottom;
-        const translateValue = overlap > 0 ? -overlap : 0;
-
-        Animated.timing(ctaTranslateY, {
-          toValue: translateValue,
-          duration: Platform.OS === 'ios' ? 250 : 200,
-          useNativeDriver: true,
-        }).start();
-      }
-    );
-
-    const hideListener = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        Animated.timing(ctaTranslateY, {
-          toValue: 0,
-          duration: Platform.OS === 'ios' ? 250 : 200,
-          useNativeDriver: true,
-        }).start();
-      }
-    );
-
-    return () => {
-      showListener.remove();
-      hideListener.remove();
-    };
-  }, [insets.bottom, tabBarHeight]);
 
   // Semptom toggle (şiddet döngüsü: 0 → 1 → 2 → 3 → 0)
   const toggleSymptom = useCallback((id: string) => {
@@ -188,12 +146,54 @@ export default function DailyLogScreen({ route, navigation }: any) {
     { key: 'agrili', label: 'Ağrılı' },
   ];
 
+  // Footer CTA component
+  const FooterCTA = () => (
+    <View
+      style={{
+        marginTop: 16,
+        marginBottom: tabBarHeight + insets.bottom + 12,
+        paddingHorizontal: 0,
+      }}
+    >
+      <Pressable
+        onPress={handleSave}
+        disabled={!hasChanges || isSaving}
+        accessibilityRole="button"
+        accessibilityLabel={isSaving ? 'Kaydediliyor' : 'Günlüğünü Kaydet'}
+        style={{
+          opacity: hasChanges && !isSaving ? 1 : 0.6,
+          shadowColor: '#000',
+          shadowOpacity: 0.2,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 16,
+        }}
+      >
+        <LinearGradient
+          colors={['#FF8BC2', '#FF5BA6']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            height: 60,
+            borderRadius: 20,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '700' }}>
+            {isSaving ? '⏳ Kaydediliyor...' : '✨ Günlüğünü Kaydet ✨'}
+          </Text>
+        </LinearGradient>
+      </Pressable>
+    </View>
+  );
+
   return (
     <View style={{ flex: 1 }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'height' : undefined}
-        enabled={Platform.OS === 'ios'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <LinearGradient
           colors={['#FFF6FB', '#FFE6F5']}
@@ -206,7 +206,7 @@ export default function DailyLogScreen({ route, navigation }: any) {
             contentContainerStyle={{
               paddingTop: insets.top + 10,
               paddingHorizontal: 16,
-              paddingBottom: CTA_HEIGHT + ctaBottom + 24,
+              paddingBottom: 24,
             }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
@@ -345,54 +345,12 @@ export default function DailyLogScreen({ route, navigation }: any) {
               Ruh halin ve semptomlarına göre kişisel öneriler burada görünecek. AI henüz bağlı değil.
             </Text>
           </SectionCard>
+
+          {/* Footer CTA - Inline, sayfanın en sonunda */}
+          <FooterCTA />
           </ScrollView>
         </LinearGradient>
       </KeyboardAvoidingView>
-
-      {/* Sticky CTA - Alt barın üstünde, klavye ile animasyonlu */}
-      <Animated.View
-        pointerEvents="box-none"
-        style={{
-          position: 'absolute',
-          left: 16,
-          right: 16,
-          bottom: ctaBottom,
-          zIndex: 100,
-          transform: [{ translateY: ctaTranslateY }],
-        }}
-      >
-        <Pressable
-          onPress={handleSave}
-          disabled={!hasChanges || isSaving}
-          accessibilityRole="button"
-          accessibilityLabel={isSaving ? 'Kaydediliyor' : 'Günlüğünü Kaydet'}
-          style={{
-            opacity: hasChanges && !isSaving ? 1 : 0.6,
-            shadowColor: '#000',
-            shadowOpacity: 0.2,
-            shadowRadius: 16,
-            shadowOffset: { width: 0, height: 8 },
-            elevation: 16,
-          }}
-        >
-          <LinearGradient
-            colors={['#FF8BC2', '#FF5BA6']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{
-              height: CTA_HEIGHT,
-              borderRadius: 20,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '700' }}>
-              {isSaving ? '⏳ Kaydediliyor...' : '✨ Günlüğünü Kaydet ✨'}
-            </Text>
-          </LinearGradient>
-        </Pressable>
-      </Animated.View>
-    </View>
 
       {/* Semptom Bilgi Sheet */}
       {infoSheet && (
@@ -405,5 +363,6 @@ export default function DailyLogScreen({ route, navigation }: any) {
 
       {/* Toast */}
       {showToast && <Toast message={toastMessage} type={toastType} onHide={() => setShowToast(false)} />}
+    </View>
   );
 }
