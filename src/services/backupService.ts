@@ -13,9 +13,9 @@ export async function exportDataToFile(state: RootState): Promise<string> {
     const backupData: BackupData = {
       version: 1,
       settings: {
-        periodAvg: state.prefs.avgPeriodLengthDays,
-        cycleAvg: state.prefs.avgCycleLengthDays,
-        lastPeriodStart: state.prefs.lastPeriodStartDate,
+        periodAvg: state.prefs.avgPeriodDays,
+        cycleAvg: state.prefs.avgCycleDays,
+        lastPeriodStart: state.prefs.lastPeriodStart,
         theme: state.settings.theme as 'system' | 'light' | 'dark',
         notifications: {
           enabled: state.notification.enabled,
@@ -112,9 +112,9 @@ export function mergeImportedData(currentState: RootState, importedData: BackupD
   // Ayarları doğrudan al (en son import edilen geçerli)
   const mergedPrefs = {
     ...currentState.prefs,
-    avgPeriodLengthDays: importedData.settings.periodAvg,
-    avgCycleLengthDays: importedData.settings.cycleAvg,
-    lastPeriodStartDate: importedData.settings.lastPeriodStart,
+    avgPeriodDays: importedData.settings.periodAvg,
+    avgCycleDays: importedData.settings.cycleAvg,
+    lastPeriodStart: importedData.settings.lastPeriodStart,
   };
 
   // Günlükleri birleştir (aynı ID varsa güncelle, yoksa ekle)

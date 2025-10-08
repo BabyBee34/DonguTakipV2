@@ -100,15 +100,15 @@ export default function SettingsScreen() {
 
   // Handlers
   const handlePeriodLengthChange = useCallback((value: number) => {
-    dispatch(setPrefs({ ...prefs, avgPeriodLengthDays: value }));
+    dispatch(setPrefs({ ...prefs, avgPeriodDays: value }));
   }, [dispatch, prefs]);
 
   const handleCycleLengthChange = useCallback((value: number) => {
-    dispatch(setPrefs({ ...prefs, avgCycleLengthDays: value }));
+    dispatch(setPrefs({ ...prefs, avgCycleDays: value }));
   }, [dispatch, prefs]);
 
   const handleLastPeriodDateChange = useCallback((date: Date) => {
-    dispatch(setPrefs({ ...prefs, lastPeriodStartDate: date.toISOString() }));
+    dispatch(setPrefs({ ...prefs, lastPeriodStart: date.toISOString() }));
     setShowDatePicker(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setToast({ message: 'Son adet tarihi güncellendi', type: 'success' });
@@ -297,9 +297,9 @@ export default function SettingsScreen() {
       dispatch(clearLogs());
       dispatch(clearPeriods());
       dispatch(setPrefs({
-        avgPeriodLengthDays: 5,
-        avgCycleLengthDays: 28,
-        lastPeriodStartDate: '',
+        avgPeriodDays: 5,
+        avgCycleDays: 28,
+        lastPeriodStart: '',
       }));
       dispatch(setNotificationSettings({
         enabled: false,
@@ -394,14 +394,14 @@ export default function SettingsScreen() {
           <LabeledSlider
             label="Ortalama Adet Süresi"
             description="Adet kanamalarının ortalama süresi"
-            value={prefs.avgPeriodLengthDays}
+            value={prefs.avgPeriodDays}
             min={3}
             max={10}
             step={1}
             unit="gün"
             onValueChange={handlePeriodLengthChange}
             onValuePress={() => setShowPeriodInputModal(true)}
-            accessibilityLabel={`Ortalama Adet Süresi ${prefs.avgPeriodLengthDays} gün`}
+            accessibilityLabel={`Ortalama Adet Süresi ${prefs.avgPeriodDays} gün`}
           />
           
           <View style={{ height: 16 }} />
@@ -409,14 +409,14 @@ export default function SettingsScreen() {
           <LabeledSlider
             label="Ortalama Döngü Süresi"
             description="Döngünün ortalama uzunluğu"
-            value={prefs.avgCycleLengthDays}
+            value={prefs.avgCycleDays}
             min={21}
             max={40}
             step={1}
             unit="gün"
             onValueChange={handleCycleLengthChange}
             onValuePress={() => setShowCycleInputModal(true)}
-            accessibilityLabel={`Ortalama Döngü Süresi ${prefs.avgCycleLengthDays} gün`}
+            accessibilityLabel={`Ortalama Döngü Süresi ${prefs.avgCycleDays} gün`}
           />
           
           <View style={{ height: 16, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }} />
@@ -425,7 +425,7 @@ export default function SettingsScreen() {
             icon={<Calendar size={20} color="#E94FA1" />}
             title="Son Adet Başlangıcı"
             description="Tahmin doğruluğunu artırır"
-            value={prefs.lastPeriodStartDate ? new Date(prefs.lastPeriodStartDate).toLocaleDateString('tr-TR') : 'Seçilmedi'}
+            value={prefs.lastPeriodStart ? new Date(prefs.lastPeriodStart).toLocaleDateString('tr-TR') : 'Seçilmedi'}
             onPress={() => setShowDatePicker(true)}
             isLast
             accessibilityLabel="Son Adet Başlangıcı"
@@ -739,7 +739,7 @@ export default function SettingsScreen() {
         mode="date"
         onConfirm={handleLastPeriodDateChange}
         onCancel={() => setShowDatePicker(false)}
-        date={prefs.lastPeriodStartDate ? new Date(prefs.lastPeriodStartDate) : new Date()}
+        date={prefs.lastPeriodStart ? new Date(prefs.lastPeriodStart) : new Date()}
         maximumDate={new Date()}
         locale="tr_TR"
       />
@@ -757,7 +757,7 @@ export default function SettingsScreen() {
       <NumericInputModal
         visible={showPeriodInputModal}
         title="Ortalama Adet Süresi"
-        value={prefs.avgPeriodLengthDays}
+        value={prefs.avgPeriodDays}
         min={3}
         max={10}
         unit="gün"
@@ -771,7 +771,7 @@ export default function SettingsScreen() {
       <NumericInputModal
         visible={showCycleInputModal}
         title="Ortalama Döngü Süresi"
-        value={prefs.avgCycleLengthDays}
+        value={prefs.avgCycleDays}
         min={21}
         max={40}
         unit="gün"

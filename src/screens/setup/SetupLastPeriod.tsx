@@ -5,11 +5,16 @@ import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useTranslation } from 'react-i18next';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState } from '../../store';
+import { setPrefs } from '../../store/slices/prefsSlice';
 import { isValidISODate, isDateWithinRange } from '../../utils/validation';
 import Icon from '../../components/Icon';
 
 export default function SetupLastPeriod({ navigation }: any) {
   const { colors, typography, borderRadius, gradients, spacing } = useTheme();
+  const dispatch = useDispatch();
+  const prefs = useSelector((state: RootState) => state.prefs);
   const [date, setDate] = useState('');
   const canNext = Boolean(date);
   const { t } = useTranslation();
@@ -140,7 +145,13 @@ export default function SetupLastPeriod({ navigation }: any) {
 
         {/* Next Button */}
         <TouchableOpacity
-          onPress={() => navigation.navigate('SetupPeriodLength', { lastPeriodStart: date })}
+          onPress={() => {
+            // Redux store'a kaydet
+            if (date) {
+              dispatch(setPrefs({ ...prefs, lastPeriodStartDate: date.toISOString() }));
+            }
+            navigation.navigate('SetupPeriodLength', { lastPeriodStart: date });
+          }}
           disabled={!canNext}
           accessibilityRole="button"
           accessibilityLabel={t('common.continue')}

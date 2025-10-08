@@ -5,10 +5,15 @@ import Slider from '@react-native-community/slider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useTranslation } from 'react-i18next';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState } from '../../store';
+import { setPrefs } from '../../store/slices/prefsSlice';
 import { clampNumber } from '../../utils/validation';
 
 export default function SetupPeriodLength({ navigation, route }: any) {
   const { colors, typography, borderRadius, gradients } = useTheme();
+  const dispatch = useDispatch();
+  const prefs = useSelector((state: RootState) => state.prefs);
   const [days, setDays] = useState(5);
   const { lastPeriodStart } = route.params || {};
   const { t } = useTranslation();
@@ -108,12 +113,14 @@ export default function SetupPeriodLength({ navigation, route }: any) {
 
         {/* Next Button */}
         <TouchableOpacity
-          onPress={() =>
+          onPress={() => {
+            // Redux store'a kaydet
+            dispatch(setPrefs({ ...prefs, avgPeriodLengthDays: days }));
             navigation.navigate('SetupCycleLength', {
               lastPeriodStart,
               avgPeriodDays: days,
-            })
-          }
+            });
+          }}
           accessibilityRole="button"
           accessibilityLabel={t('common.continue')}
           style={{ width: '85%', alignSelf: 'center' }}
