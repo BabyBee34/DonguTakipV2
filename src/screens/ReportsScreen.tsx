@@ -1,5 +1,5 @@
-﻿import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
+﻿import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, useWindowDimensions, FlatList } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
@@ -9,27 +9,38 @@ import {
   getMostFrequentMood,
   getAvgSymptomsPerCycle,
   getMinMaxCycleLengths,
-  generatePersonalInsights,
 } from '../services/statistics';
 import { useTheme } from '../theme/ThemeProvider';
 import Card from '../components/Card';
 import EmptyState from '../components/EmptyState';
 import SkeletonLoader from '../components/SkeletonLoader';
+import ProgressBar from '../components/ProgressBar';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import { BarChart, LineChart, PieChart } from 'react-native-gifted-charts';
-import { format, subDays, isAfter, isBefore, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { mapSymptomLabelsTR, mapMoodLabelsTR } from '../utils/symptomLabels';
 import { 
   TimeRange, 
   applyAllFilters, 
-  formatPeriodsForSelection 
 } from '../utils/reportsFilters';
 import ReportsFilterModal from '../components/ReportsFilterModal';
 
 const AI_ENABLED = false; // AI placeholder
+
+// Ruh hali renkleri
+const MOOD_COLORS: Record<string, string> = {
+  'ecstatic': '#4ADE80', // yeşil
+  'happy': '#34D399', // turkuaz-yeşil
+  'calm': '#60A5FA', // mavi
+  'neutral': '#9CA3AF', // gri
+  'tired': '#F59E0B', // kehribar
+  'sad': '#A78BFA', // mor
+  'anxious': '#FB923C', // turuncu
+  'irritable': '#F87171', // kırmızı
+  'angry': '#EF4444', // koyu kırmızı
+};
 
 export default function ReportsScreen({ navigation }: any) {
   const { colors, spacing, borderRadius, shadows } = useTheme();
@@ -47,7 +58,10 @@ export default function ReportsScreen({ navigation }: any) {
   const [menstruationOnly, setMenstruationOnly] = useState(false);
   const [selectedPeriods, setSelectedPeriods] = useState<any[]>([]);
 
-  // Tüm filtreleri uygula
+  // Aktif filtre kontrolü
+  const hasActiveFilters = menstruationOnly || selectedPeriods.length > 0;
+
+  // Tüm filtreleri uygula - memoized
   const { filteredLogs, filteredPeriods } = useMemo(() => {
     return applyAllFilters(logs, periods, timeFilter, menstruationOnly, selectedPeriods);
   }, [logs, periods, timeFilter, menstruationOnly, selectedPeriods]);
@@ -57,24 +71,24 @@ export default function ReportsScreen({ navigation }: any) {
   const minMaxCycles = useMemo(() => getMinMaxCycleLengths(filteredPeriods), [filteredPeriods]);
   const avgSymptoms = useMemo(() => getAvgSymptomsPerCycle(filteredLogs, filteredPeriods), [filteredLogs, filteredPeriods]);
   const mostFrequentMood = useMemo(() => getMostFrequentMood(filteredLogs), [filteredLogs]);
-  const insights = useMemo(() => generatePersonalInsights(filteredLogs, filteredPeriods), [filteredLogs, filteredPeriods]);
 
-  // Semptom dağılımı (top 5) - Türkçe etiketlerle
+  // Semptom dağılımı (top 5) - Türkçe etiketlerle + ilerleme barı için
   const topSymptoms = useMemo(() => {
     const entries = Object.entries(symptomFreq);
+    const totalCount = entries.reduce((sum, [, count]) => sum + count, 0);
+    
     return entries
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map(([symptom, freq]) => ({ 
-        value: freq, 
-        label: mapSymptomLabelsTR(symptom).length > 12 
-          ? mapSymptomLabelsTR(symptom).slice(0, 10) + '...' 
-          : mapSymptomLabelsTR(symptom),
-        frontColor: '#E94FA1'
+      .map(([symptom, count]) => ({ 
+        symptom,
+        label: mapSymptomLabelsTR(symptom),
+        count,
+        percentage: totalCount > 0 ? Math.round((count / totalCount) * 100) : 0,
       }));
   }, [symptomFreq]);
 
-  // Ruh hali dağılımı (pie chart) - Türkçe etiketlerle
+  // Ruh hali dağılımı - liste için
   const moodDistribution = useMemo(() => {
     const moodCounts: Record<string, number> = {};
     filteredLogs.forEach(log => {
@@ -85,18 +99,20 @@ export default function ReportsScreen({ navigation }: any) {
 
     const total = Object.values(moodCounts).reduce((sum, count) => sum + count, 0);
     
-    // 3 pastel ton geçişli renk paleti
-    const pastelColors = ['#FFB6EC', '#D6A3FF', '#CFF8EE'];
-    
-    return Object.entries(moodCounts).map(([mood, count], idx) => ({
-      value: count,
-      color: pastelColors[idx % pastelColors.length],
-      text: `${Math.round((count / total) * 100)}%`,
-      label: mapMoodLabelsTR(mood),
-    }));
+    const moodArray = Object.entries(moodCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([mood, count]) => ({
+        mood,
+        label: mapMoodLabelsTR(mood),
+        count,
+        percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+        color: MOOD_COLORS[mood] || '#9CA3AF',
+      }));
+
+    return { moods: moodArray, total };
   }, [filteredLogs]);
 
-  // Döngü geçmişi listesi (detaylı) - Türkçe tarih formatıyla
+  // Döngü geçmişi listesi (detaylı) - Türkçe tarih formatıyla - memoized
   const cycleHistoryList = useMemo(() => {
     return filteredPeriods
       .filter(p => p.start)
@@ -122,31 +138,122 @@ export default function ReportsScreen({ navigation }: any) {
     return () => clearTimeout(timer);
   }, [filteredPeriods, filteredLogs]);
 
-  const handleFilterApply = (filters: { menstruationOnly: boolean; selectedPeriods: any[] }) => {
+  const handleFilterApply = useCallback((filters: { menstruationOnly: boolean; selectedPeriods: any[] }) => {
     setMenstruationOnly(filters.menstruationOnly);
     setSelectedPeriods(filters.selectedPeriods);
-  };
+  }, []);
 
   if (!hasSufficientData) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF9FB' }} edges={['top']}>
-        <EmptyState
-          emoji="📊"
-          title={t('reports.emptyState.title')}
-          description={t('reports.emptyState.description')}
-          actionTitle={t('reports.emptyState.action')}
-          onActionPress={() => navigation.navigate('Calendar')}
-        />
+      <EmptyState
+        emoji="📊"
+        title={t('reports.emptyState.title')}
+        description={t('reports.emptyState.description')}
+        actionTitle={t('reports.emptyState.action')}
+        onActionPress={() => navigation.navigate('Calendar')}
+      />
       </SafeAreaView>
     );
   }
+
+  // Render semptom satırı
+  const renderSymptomItem = ({ item, index }: { item: any; index: number }) => (
+    <View
+      style={{
+        paddingVertical: 12,
+        borderBottomWidth: index < topSymptoms.length - 1 ? 1 : 0,
+        borderBottomColor: '#E5E7EB',
+      }}
+      accessibilityLabel={`${item.label}, yüzde ${item.percentage}, ${item.count} kez`}
+      accessibilityRole="text"
+    >
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: '#1F2937', flex: 1 }}>
+          {item.label}
+        </Text>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: '#E94FA1', marginLeft: 8 }}>
+          %{item.percentage} • {item.count} kez
+        </Text>
+      </View>
+      <ProgressBar percentage={item.percentage} />
+    </View>
+  );
+
+  // Render ruh hali satırı
+  const renderMoodItem = ({ item, index }: { item: any; index: number }) => {
+    const isTopMood = index === 0;
+  return (
+      <View
+        style={{
+          paddingVertical: 12,
+          borderBottomWidth: index < moodDistribution.moods.length - 1 ? 1 : 0,
+          borderBottomColor: '#E5E7EB',
+        }}
+        accessibilityLabel={`${item.label}, yüzde ${item.percentage}, ${item.count} kez${isTopMood ? ', en sık' : ''}`}
+        accessibilityRole="text"
+      >
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#1F2937' }}>
+              {item.label}
+            </Text>
+            {isTopMood && (
+              <View
+                style={{
+                  backgroundColor: '#E94FA1',
+                  borderRadius: 8,
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  marginLeft: 8,
+                }}
+              >
+                <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#FFF' }}>En sık</Text>
+            </View>
+            )}
+          </View>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#6B7280', marginLeft: 8 }}>
+            %{item.percentage} • {item.count} kez
+          </Text>
+            </View>
+        <ProgressBar percentage={item.percentage} color={item.color} height={4} />
+            </View>
+    );
+  };
+
+  // Render döngü geçmişi satırı
+  const renderCycleHistoryItem = ({ item, index }: { item: any; index: number }) => (
+    <TouchableOpacity
+      style={{
+        paddingVertical: 16,
+        borderBottomWidth: index < cycleHistoryList.length - 1 ? 1 : 0,
+        borderBottomColor: '#E5E7EB',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      }}
+      activeOpacity={0.7}
+      accessibilityLabel={`Döngü ${item.start} ile ${item.end} arası, döngü ${item.cycleLength} gün, adet ${item.periodLength} gün, detay için dokun`}
+      accessibilityRole="button"
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#1F2937' }}>
+          {item.start} – {item.end}
+        </Text>
+        <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+          Döngü: {item.cycleLength} gün • Adet: {item.periodLength} gün
+        </Text>
+          </View>
+      <Text style={{ fontSize: 18, color: '#9CA3AF', marginLeft: 12 }}>›</Text>
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF9FB' }} edges={['top']}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          paddingTop: insets.top + 24,
+          paddingTop: insets.top + 16,
           paddingHorizontal: 16,
           paddingBottom: 24,
         }}
@@ -159,7 +266,7 @@ export default function ReportsScreen({ navigation }: any) {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={{
-            borderRadius: 14,
+            borderRadius: 20,
             padding: 16,
             marginBottom: 16,
             shadowColor: '#000',
@@ -192,6 +299,8 @@ export default function ReportsScreen({ navigation }: any) {
                   key={option}
                   onPress={() => setTimeFilter(option)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel={`${labels[option]} filtresi${isActive ? ', seçili' : ''}`}
+                  accessibilityRole="button"
                   style={{
                     minHeight: 44,
                     paddingVertical: 10,
@@ -222,10 +331,12 @@ export default function ReportsScreen({ navigation }: any) {
               );
             })}
             
-            {/* Filtre İkonu */}
+            {/* Filtre İkonu - Aktif Gösterge ile */}
             <TouchableOpacity
               onPress={() => setShowFilterModal(true)}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel={`Filtreler${hasActiveFilters ? ', aktif filtreler var' : ''}`}
+              accessibilityRole="button"
               style={{
                 minHeight: 44,
                 paddingVertical: 10,
@@ -246,6 +357,19 @@ export default function ReportsScreen({ navigation }: any) {
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#6B7280' }}>
                 🔍 Filtre
               </Text>
+              {hasActiveFilters && (
+                    <View 
+                      style={{ 
+                    position: 'absolute',
+                    top: 6,
+                    right: 6,
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: '#E94FA1',
+                  }}
+                />
+              )}
             </TouchableOpacity>
           </ScrollView>
 
@@ -273,6 +397,38 @@ export default function ReportsScreen({ navigation }: any) {
                   </Text>
                   <TouchableOpacity
                     onPress={() => setMenstruationOnly(false)}
+                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                    style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: 8,
+                      backgroundColor: '#E94FA1',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text style={{ color: '#FFF', fontSize: 10, fontWeight: 'bold' }}>×</Text>
+                  </TouchableOpacity>
+          </View>
+              )}
+              
+              {selectedPeriods.length > 0 && (
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#FFE8F5',
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: '#E94FA1',
+                }}>
+                  <Text style={{ fontSize: 12, color: '#E94FA1', fontWeight: '600', marginRight: 4 }}>
+                    Seçili {selectedPeriods.length}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setSelectedPeriods([])}
+                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                     style={{
                       width: 16,
                       height: 16,
@@ -286,36 +442,6 @@ export default function ReportsScreen({ navigation }: any) {
                   </TouchableOpacity>
                 </View>
               )}
-              
-              {selectedPeriods.map((period, idx) => (
-                <View key={period.id} style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: '#FFE8F5',
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: '#E94FA1',
-                }}>
-                  <Text style={{ fontSize: 12, color: '#E94FA1', fontWeight: '600', marginRight: 4 }}>
-                    Dönem {idx + 1}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setSelectedPeriods(prev => prev.filter(p => p.id !== period.id))}
-                    style={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: 8,
-                      backgroundColor: '#E94FA1',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Text style={{ color: '#FFF', fontSize: 10, fontWeight: 'bold' }}>×</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
             </ScrollView>
           )}
         </View>
@@ -331,14 +457,14 @@ export default function ReportsScreen({ navigation }: any) {
           </>
         ) : (
           <>
-            {/* Özet Kartları (4+2 grid) */}
+            {/* KPI Kartları (4+2 grid) */}
             <View style={{ marginBottom: 16 }}>
               {/* Row 1 */}
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
                 <View style={{ 
                   flex: 1, 
                   backgroundColor: '#FFF', 
-                  borderRadius: 14, 
+                  borderRadius: 18, 
                   padding: 16, 
                   minHeight: 95, 
                   justifyContent: 'center',
@@ -348,8 +474,11 @@ export default function ReportsScreen({ navigation }: any) {
                   shadowOpacity: 0.05,
                   shadowRadius: 8,
                   elevation: 2,
-                }}>
-                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: stats.avgCycleLength > 0 ? '#E94FA1' : '#9CA3AF' }}>
+                }}
+                accessibilityLabel={`Ortalama Döngü: ${stats.avgCycleLength > 0 ? stats.avgCycleLength + ' gün' : 'veri yok'}`}
+                accessibilityRole="text"
+                >
+                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: stats.avgCycleLength > 0 ? '#E94FA1' : '#9CA3AF' }} numberOfLines={1}>
                     {stats.avgCycleLength > 0 ? stats.avgCycleLength : '—'}
                   </Text>
                   <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' }}>Ortalama Döngü</Text>
@@ -358,7 +487,7 @@ export default function ReportsScreen({ navigation }: any) {
                 <View style={{ 
                   flex: 1, 
                   backgroundColor: '#FFF', 
-                  borderRadius: 14, 
+                  borderRadius: 18, 
                   padding: 16, 
                   minHeight: 95, 
                   justifyContent: 'center',
@@ -368,8 +497,11 @@ export default function ReportsScreen({ navigation }: any) {
                   shadowOpacity: 0.05,
                   shadowRadius: 8,
                   elevation: 2,
-                }}>
-                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: stats.avgPeriodLength > 0 ? '#E94FA1' : '#9CA3AF' }}>
+                }}
+                accessibilityLabel={`Adet Süresi: ${stats.avgPeriodLength > 0 ? stats.avgPeriodLength + ' gün' : 'veri yok'}`}
+                accessibilityRole="text"
+                >
+                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: stats.avgPeriodLength > 0 ? '#E94FA1' : '#9CA3AF' }} numberOfLines={1}>
                     {stats.avgPeriodLength > 0 ? stats.avgPeriodLength : '—'}
                   </Text>
                   <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' }}>Adet Süresi</Text>
@@ -382,7 +514,7 @@ export default function ReportsScreen({ navigation }: any) {
                 <View style={{ 
                   flex: 1, 
                   backgroundColor: '#FFF', 
-                  borderRadius: 14, 
+                  borderRadius: 18, 
                   padding: 16, 
                   minHeight: 95, 
                   justifyContent: 'center',
@@ -392,8 +524,11 @@ export default function ReportsScreen({ navigation }: any) {
                   shadowOpacity: 0.05,
                   shadowRadius: 8,
                   elevation: 2,
-                }}>
-                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: stats.totalCycles > 0 ? '#E94FA1' : '#9CA3AF' }}>
+                }}
+                accessibilityLabel={`Takip Edilen: ${stats.totalCycles > 0 ? stats.totalCycles + ' döngü' : 'veri yok'}`}
+                accessibilityRole="text"
+                >
+                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: stats.totalCycles > 0 ? '#E94FA1' : '#9CA3AF' }} numberOfLines={1}>
                     {stats.totalCycles > 0 ? stats.totalCycles : '—'}
                   </Text>
                   <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' }}>Takip Edilen</Text>
@@ -402,7 +537,7 @@ export default function ReportsScreen({ navigation }: any) {
                 <View style={{ 
                   flex: 1, 
                   backgroundColor: '#FFF', 
-                  borderRadius: 14, 
+                  borderRadius: 18, 
                   padding: 16, 
                   minHeight: 95, 
                   justifyContent: 'center',
@@ -412,8 +547,11 @@ export default function ReportsScreen({ navigation }: any) {
                   shadowOpacity: 0.05,
                   shadowRadius: 8,
                   elevation: 2,
-                }}>
-                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: stats.lastCycleLength ? '#E94FA1' : '#9CA3AF' }}>
+                }}
+                accessibilityLabel={`Son Döngü: ${stats.lastCycleLength ? stats.lastCycleLength + ' gün' : 'veri yok'}`}
+                accessibilityRole="text"
+                >
+                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: stats.lastCycleLength ? '#E94FA1' : '#9CA3AF' }} numberOfLines={1}>
                     {stats.lastCycleLength || '—'}
                   </Text>
                   <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' }}>Son Döngü</Text>
@@ -426,7 +564,7 @@ export default function ReportsScreen({ navigation }: any) {
                 <View style={{ 
                   flex: 1, 
                   backgroundColor: '#FFF', 
-                  borderRadius: 14, 
+                  borderRadius: 18, 
                   padding: 16, 
                   minHeight: 95, 
                   justifyContent: 'center',
@@ -436,8 +574,11 @@ export default function ReportsScreen({ navigation }: any) {
                   shadowOpacity: 0.05,
                   shadowRadius: 8,
                   elevation: 2,
-                }}>
-                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: minMaxCycles.min > 0 ? '#E94FA1' : '#9CA3AF' }}>
+                }}
+                accessibilityLabel={`En Kısa Uzun: ${minMaxCycles.min > 0 ? minMaxCycles.min + ' ile ' + minMaxCycles.max + ' gün arası' : 'veri yok'}`}
+                accessibilityRole="text"
+                >
+                  <Text style={{ fontSize: 24, fontWeight: 'bold', color: minMaxCycles.min > 0 ? '#E94FA1' : '#9CA3AF' }} numberOfLines={1}>
                     {minMaxCycles.min > 0 ? `${minMaxCycles.min}–${minMaxCycles.max}` : '—'}
                   </Text>
                   <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' }}>En Kısa/Uzun</Text>
@@ -446,7 +587,7 @@ export default function ReportsScreen({ navigation }: any) {
                 <View style={{ 
                   flex: 1, 
                   backgroundColor: '#FFF', 
-                  borderRadius: 14, 
+                  borderRadius: 18, 
                   padding: 16, 
                   minHeight: 95, 
                   justifyContent: 'center',
@@ -456,8 +597,11 @@ export default function ReportsScreen({ navigation }: any) {
                   shadowOpacity: 0.05,
                   shadowRadius: 8,
                   elevation: 2,
-                }}>
-                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: avgSymptoms > 0 ? '#E94FA1' : '#9CA3AF' }}>
+                }}
+                accessibilityLabel={`Ortalama Semptom: ${avgSymptoms > 0 ? avgSymptoms + ' semptom döngü başına' : 'veri yok'}`}
+                accessibilityRole="text"
+                >
+                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: avgSymptoms > 0 ? '#E94FA1' : '#9CA3AF' }} numberOfLines={1}>
                     {avgSymptoms > 0 ? avgSymptoms : '—'}
                   </Text>
                   <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' }}>Ort. Semptom</Text>
@@ -466,219 +610,159 @@ export default function ReportsScreen({ navigation }: any) {
               </View>
             </View>
 
-            {/* En Sık Ruh Hâli Kartı */}
+            {/* Semptom Dağılımı - Liste + İlerleme Barı */}
             <View style={{ 
-              backgroundColor: '#FCE7F3', 
-              borderRadius: 14, 
+              backgroundColor: '#FFF', 
+              borderRadius: 20, 
               padding: 16, 
-              marginBottom: 16, 
+              marginBottom: 16,
               shadowColor: '#000',
               shadowOffset: { width: 0, height: 2 },
               shadowOpacity: 0.05,
               shadowRadius: 8,
               elevation: 2,
+              overflow: 'hidden',
             }}>
-              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
-                En Sık Ruh Hâli ☁️
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 4 }}>
+                Semptom Dağılımı ✨
               </Text>
-              <Text style={{ fontSize: 16, color: '#E94FA1', fontWeight: '600' }}>
-                {mostFrequentMood || 'Ruh hâli verisi bulunamadı.'}
+              <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>
+                En sık 5 semptom, yüzde ve adet
               </Text>
+              
+              {topSymptoms.length > 0 ? (
+                <>
+                  <FlatList
+                    data={topSymptoms}
+                    renderItem={renderSymptomItem}
+                    keyExtractor={(item) => item.symptom}
+                    scrollEnabled={false}
+                    removeClippedSubviews={true}
+                  />
+                  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 12, fontStyle: 'italic' }}>
+                    En sık: {topSymptoms[0].label} (%{topSymptoms[0].percentage})
+                  </Text>
+                </>
+              ) : (
+                <View style={{
+                  padding: 20,
+                  backgroundColor: '#F9FAFB',
+                  borderRadius: 12,
+                  alignItems: 'center',
+                }}>
+                  <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 20 }}>
+                    Semptom kaydı bulunamadı. Günlükten semptom eklediğinde burada görünecek. 💡
+                      </Text>
+                </View>
+              )}
+          </View>
+
+            {/* Ruh Hali Dağılımı - Liste + Mini Barlar */}
+            <View style={{ 
+              backgroundColor: '#FFF', 
+              borderRadius: 20, 
+              padding: 16, 
+              marginBottom: 16,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 8,
+              elevation: 2,
+              overflow: 'hidden',
+            }}>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 4 }}>
+                Ruh Hâli Dağılımı 🎨
+        </Text>
+              <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>
+                Seçili aralıktaki ruh hâli kayıtları
+              </Text>
+              
+              {moodDistribution.total === 0 ? (
+                <View style={{
+                  padding: 20,
+                  backgroundColor: '#F9FAFB',
+                  borderRadius: 12,
+                  alignItems: 'center',
+                }}>
+                  <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center' }}>
+                    Ruh hâli kaydı bulunamadı.
+                  </Text>
+                </View>
+              ) : moodDistribution.total === 1 ? (
+                <View style={{
+                  padding: 16,
+                  backgroundColor: '#F0FDF4',
+                  borderRadius: 12,
+                }}>
+                  <Text style={{ fontSize: 14, color: '#1F2937', textAlign: 'center', marginBottom: 4 }}>
+                    Bu aralıkta 1 kayıt var: <Text style={{ fontWeight: 'bold' }}>{moodDistribution.moods[0].label}</Text> 🎉
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center' }}>
+                    Daha çok günlük girdisiyle dağılım netleşir.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <FlatList
+                    data={moodDistribution.moods}
+                    renderItem={renderMoodItem}
+                    keyExtractor={(item) => item.mood}
+                    scrollEnabled={false}
+                    removeClippedSubviews={true}
+                  />
+                  <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 16, textAlign: 'center' }}>
+                    ⚠️ Bu bilgiler geneldir; tıbbî tavsiye değildir.
+                  </Text>
+                </>
+              )}
             </View>
 
-            {/* Semptom Dağılımı - Bar Chart */}
-            {topSymptoms.length > 0 ? (
-              <View style={{ 
-                backgroundColor: '#FFF', 
-                borderRadius: 14, 
-                padding: 16, 
-                marginBottom: 16,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 8,
-                elevation: 2,
-              }}>
-                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 8 }}>
-                  Semptom Dağılımı ✨
-                </Text>
-                <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>
-                  En sık 5 semptom, yüzde oranlı
-                </Text>
-                
-                {/* Grafik Container - Overflow Hidden */}
-                <View style={{ 
-                  overflow: 'hidden', 
-                  borderRadius: 8,
-                  paddingTop: 12,
-                  paddingBottom: 8,
-                  paddingLeft: 12,
-                  paddingRight: 12,
-                }}>
-                  <BarChart
-                    data={topSymptoms}
-                    width={width - 80}
-                    height={200}
-                    barWidth={width * 0.6 / topSymptoms.length}
-                    noOfSections={4}
-                    barBorderRadius={8}
-                    frontColor="#E94FA1"
-                    yAxisThickness={0}
-                    xAxisThickness={1}
-                    xAxisColor="#E5E7EB"
-                    hideRules
-                    showValuesAsTopLabel
-                    topLabelTextStyle={{ fontSize: 11, fontWeight: '600', color: '#1F2937' }}
-                    xAxisLabelTextStyle={{ fontSize: 10, color: '#6B7280', rotation: -15 }}
-                    maxValue={100}
-                  />
-                </View>
-                
-                <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 12, textAlign: 'center', fontStyle: 'italic' }}>
-                  En sık görülen: <Text style={{ fontWeight: '600', color: '#1F2937' }}>
-                    {topSymptoms[0].label} ({topSymptoms[0].value}%)
-                  </Text>
-                </Text>
-              </View>
-            ) : (
-              <View style={{ 
-                backgroundColor: '#F9FAFB', 
-                borderRadius: 14, 
-                padding: 32, 
-                marginBottom: 16,
-                alignItems: 'center',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 8,
-                elevation: 2,
-              }}>
-                <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center' }}>
-                  Semptom kaydı bulunamadı.
-                </Text>
-              </View>
-            )}
-
-            {/* Ruh Hâli Dağılımı - Donut Chart */}
-            {moodDistribution.length > 0 ? (
-              <View style={{ 
-                backgroundColor: '#FFF', 
-                borderRadius: 14, 
-                padding: 16, 
-                marginBottom: 16,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 8,
-                elevation: 2,
-              }}>
-                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
-                  Ruh Hâli Dağılımı 🎨
-                </Text>
-                
-                {/* Grafik Container - Overflow Hidden */}
-                <View style={{ 
-                  overflow: 'hidden', 
-                  borderRadius: 8,
-                  alignItems: 'center', 
-                  marginVertical: 16,
-                }}>
-                  <PieChart
-                    data={moodDistribution}
-                    donut
-                    radius={80}
-                    innerRadius={50}
-                    centerLabelComponent={() => (
-                      <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937' }}>
-                        {moodDistribution.reduce((sum, d) => sum + d.value, 0)}
-                      </Text>
-                    )}
-                  />
-                </View>
-                
-                <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 16, textAlign: 'center' }}>
-                  ⚠️ Bu bilgiler geneldir; tıbbî tavsiye değildir.
-                </Text>
-              </View>
-            ) : (
-              <View style={{ 
-                backgroundColor: '#F9FAFB', 
-                borderRadius: 14, 
-                padding: 32, 
-                marginBottom: 16,
-                alignItems: 'center',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 8,
-                elevation: 2,
-              }}>
-                <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center' }}>
-                  Ruh hâli kaydı bulunamadı.
-                </Text>
-              </View>
-            )}
-
             {/* Döngü Geçmişi 📅 */}
-            {cycleHistoryList.length > 0 ? (
-              <View style={{ 
-                backgroundColor: '#FFF', 
-                borderRadius: 14, 
-                padding: 16, 
-                marginBottom: 16,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 8,
-                elevation: 2,
-              }}>
-                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
-                  Döngü Geçmişi 📅
-                </Text>
-                {cycleHistoryList.map((item, idx) => (
-                  <View
-                    key={item.id}
-                    style={{
-                      paddingVertical: 16,
-                      borderBottomWidth: idx < cycleHistoryList.length - 1 ? 1 : 0,
-                      borderBottomColor: '#E5E7EB',
-                    }}
-                  >
-                    <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#1F2937' }}>
-                      {item.start} – {item.end}
-                    </Text>
-                    <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
-                      Döngü: {item.cycleLength} gün • Adet: {item.periodLength} gün
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <View style={{ 
-                backgroundColor: '#FCE7F3', 
-                borderRadius: 14, 
-                padding: 32, 
-                marginBottom: 16, 
-                alignItems: 'center',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 8,
-                elevation: 2,
-              }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1F2937', textAlign: 'center', marginBottom: 8 }}>
-                  Bu aralık için veri yok.
-                </Text>
-                <Text style={{ fontSize: 12, color: '#6B7280', textAlign: 'center' }}>
-                  Farklı bir zaman aralığı seçebilirsin.
-                </Text>
-              </View>
-            )}
+            <View style={{ 
+              backgroundColor: '#FFF', 
+              borderRadius: 20, 
+              padding: 16, 
+              marginBottom: 16,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 8,
+              elevation: 2,
+              overflow: 'hidden',
+            }}>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 16 }}>
+                Döngü Geçmişi 📅
+              </Text>
+              
+              {cycleHistoryList.length > 0 ? (
+                <FlatList
+                  data={cycleHistoryList}
+                  renderItem={renderCycleHistoryItem}
+                  keyExtractor={(item) => item.id}
+                  scrollEnabled={false}
+                  removeClippedSubviews={true}
+                />
+              ) : (
+                <View style={{
+                  padding: 20,
+                  backgroundColor: '#F9FAFB',
+                  borderRadius: 12,
+                  alignItems: 'center',
+                }}>
+                  <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 4 }}>
+                    Bu aralık için veri yok.
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>
+                    Farklı bir zaman aralığı seçebilirsin.
+                  </Text>
+                </View>
+              )}
+            </View>
 
             {/* Kişisel Öneriler 🌸 */}
             <View style={{ 
               backgroundColor: '#FFEAF7', 
-              borderRadius: 14, 
+              borderRadius: 20, 
               padding: 16, 
               marginBottom: 16,
               shadowColor: '#000',
@@ -691,8 +775,8 @@ export default function ReportsScreen({ navigation }: any) {
                 <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937' }}>
                   Kişisel Öneriler 🌸
                 </Text>
-                <View
-                  style={{
+              <View 
+                style={{ 
                     backgroundColor: '#E94FA1',
                     borderRadius: 12,
                     paddingHorizontal: 10,
@@ -710,7 +794,7 @@ export default function ReportsScreen({ navigation }: any) {
             {/* Tahmin Sistemi 🎯 */}
             <View style={{ 
               backgroundColor: '#F3E8FF', 
-              borderRadius: 14, 
+              borderRadius: 20, 
               padding: 16, 
               marginBottom: 16,
               shadowColor: '#000',
@@ -732,18 +816,12 @@ export default function ReportsScreen({ navigation }: any) {
                       %{stats.predictionAccuracy}
                     </Text>
                   </View>
-                  <View style={{ marginBottom: 12, height: 8, backgroundColor: '#E5E7EB', borderRadius: 4, overflow: 'hidden' }}>
-                    <View
-                      style={{
-                        height: '100%',
-                        width: `${stats.predictionAccuracy}%`,
-                        backgroundColor: '#E94FA1',
-                      }}
-                    />
+                  <View style={{ marginBottom: 12 }}>
+                    <ProgressBar percentage={stats.predictionAccuracy} height={8} />
                   </View>
                   <Text style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>
-                    {t('reports.prediction.calculating', { count: 3 })}
-                  </Text>
+              {t('reports.prediction.calculating', { count: 3 })}
+            </Text>
 
                   <View
                     style={{
@@ -758,19 +836,19 @@ export default function ReportsScreen({ navigation }: any) {
                       ℹ️ {t('reports.prediction.explanation')}
                     </Text>
                   </View>
-                </>
-              ) : (
+          </>
+        ) : (
                 <Text style={{ fontSize: 14, fontWeight: '500', color: '#6B7280' }}>
                   Daha fazla veri gerekiyor…
-                </Text>
-              )}
+          </Text>
+        )}
             </View>
 
-            {/* Döngü Değişkenliği */}
-            {stats.totalCycles >= 2 && (
+      {/* Döngü Değişkenliği */}
+      {stats.totalCycles >= 2 && (
               <View style={{ 
                 backgroundColor: '#FFF', 
-                borderRadius: 14, 
+                borderRadius: 20, 
                 padding: 16, 
                 marginBottom: 16,
                 shadowColor: '#000',
@@ -780,35 +858,35 @@ export default function ReportsScreen({ navigation }: any) {
                 elevation: 2,
               }}>
                 <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#1F2937', marginBottom: 12 }}>
-                  📊 Döngü Düzenliliği
-                </Text>
+            📊 Döngü Düzenliliği
+          </Text>
                 <Text style={{ fontSize: 14, color: '#6B7280', lineHeight: 20, marginBottom: 8 }}>
                   Döngü değişkenliği: <Text style={{ fontWeight: '600', color: '#1F2937' }}>±{stats.cycleVariability} gün</Text>
-                </Text>
+          </Text>
                 <Text style={{ fontSize: 12, color: '#6B7280' }}>
-                  {stats.cycleVariability < 3
-                    ? 'Çok düzenli döngüleriniz var! 🌟'
-                    : stats.cycleVariability < 5
-                    ? 'Döngüleriniz oldukça düzenli 👍'
-                    : 'Döngülerinizde değişkenlik var, bu normal olabilir'}
-                </Text>
+            {stats.cycleVariability < 3 
+              ? 'Çok düzenli döngüleriniz var! 🌟' 
+              : stats.cycleVariability < 5 
+              ? 'Döngüleriniz oldukça düzenli 👍' 
+              : 'Döngülerinizde değişkenlik var, bu normal olabilir'}
+          </Text>
               </View>
-            )}
-          </>
-        )}
+      )}
+        </>
+      )}
+    </ScrollView>
 
-        {/* Filter Modal */}
-        <ReportsFilterModal
-          visible={showFilterModal}
-          onClose={() => setShowFilterModal(false)}
-          onApply={handleFilterApply}
-          periods={periods}
-          initialFilters={{
-            menstruationOnly,
-            selectedPeriods,
-          }}
-        />
-      </ScrollView>
+      {/* Filter Modal */}
+      <ReportsFilterModal
+        visible={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        onApply={handleFilterApply}
+        periods={periods}
+        initialFilters={{
+          menstruationOnly,
+          selectedPeriods,
+        }}
+      />
     </SafeAreaView>
   );
 }
