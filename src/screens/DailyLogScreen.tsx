@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Pressable,
   Animated,
   Keyboard,
+  KeyboardEvent,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -60,6 +61,44 @@ export default function DailyLogScreen({ route, navigation }: any) {
   // CTA dinamik bottom pozisyonu
   const CTA_HEIGHT = 60;
   const ctaBottom = insets.bottom + tabBarHeight + 12;
+  
+  // Klavye animasyonu için translateY
+  const ctaTranslateY = useRef(new Animated.Value(0)).current;
+
+  // Klavye listener'ları
+  useEffect(() => {
+    const showListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e: KeyboardEvent) => {
+        const keyboardHeight = e.endCoordinates.height;
+        const targetBottom = insets.bottom + tabBarHeight + 12;
+        const overlap = keyboardHeight - targetBottom;
+        const translateValue = overlap > 0 ? -overlap : 0;
+
+        Animated.timing(ctaTranslateY, {
+          toValue: translateValue,
+          duration: Platform.OS === 'ios' ? 250 : 200,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+
+    const hideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        Animated.timing(ctaTranslateY, {
+          toValue: 0,
+          duration: Platform.OS === 'ios' ? 250 : 200,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+
+    return () => {
+      showListener.remove();
+      hideListener.remove();
+    };
+  }, [insets.bottom, tabBarHeight]);
 
   // Semptom toggle (şiddet döngüsü: 0 → 1 → 2 → 3 → 0)
   const toggleSymptom = useCallback((id: string) => {
@@ -150,11 +189,11 @@ export default function DailyLogScreen({ route, navigation }: any) {
   ];
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        behavior={Platform.OS === 'ios' ? 'height' : undefined}
+        enabled={Platform.OS === 'ios'}
       >
         <LinearGradient
           colors={['#FFF6FB', '#FFE6F5']}
@@ -310,15 +349,16 @@ export default function DailyLogScreen({ route, navigation }: any) {
         </LinearGradient>
       </KeyboardAvoidingView>
 
-      {/* Sticky CTA - Alt barın üstünde */}
-      <View
+      {/* Sticky CTA - Alt barın üstünde, klavye ile animasyonlu */}
+      <Animated.View
         pointerEvents="box-none"
         style={{
           position: 'absolute',
           left: 16,
           right: 16,
           bottom: ctaBottom,
-          zIndex: 50,
+          zIndex: 100,
+          transform: [{ translateY: ctaTranslateY }],
         }}
       >
         <Pressable
@@ -351,7 +391,8 @@ export default function DailyLogScreen({ route, navigation }: any) {
             </Text>
           </LinearGradient>
         </Pressable>
-      </View>
+      </Animated.View>
+    </View>
 
       {/* Semptom Bilgi Sheet */}
       {infoSheet && (
@@ -364,6 +405,5 @@ export default function DailyLogScreen({ route, navigation }: any) {
 
       {/* Toast */}
       {showToast && <Toast message={toastMessage} type={toastType} onHide={() => setShowToast(false)} />}
-    </>
   );
 }
