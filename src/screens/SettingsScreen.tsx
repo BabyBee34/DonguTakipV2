@@ -25,7 +25,6 @@ import {
   Lock, 
   Download, 
   Upload, 
-  Trash, 
   Info,
   Calendar,
   Clock,
