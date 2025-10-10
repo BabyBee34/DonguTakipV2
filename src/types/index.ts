@@ -32,6 +32,9 @@ export type Symptom =
 
 export type CyclePhase = 'menstrual' | 'follicular' | 'ovulation' | 'luteal';
 
+// Habit keys (alışkanlıklar)
+export type HabitKey = 'water' | 'walk' | 'rest' | 'shower';
+
 export interface CyclePrefs {
   avgPeriodDays: number;
   avgCycleDays: number;
@@ -42,7 +45,9 @@ export interface DailyLog {
   id: string;
   date: string;
   mood?: Mood;
-  symptoms: Symptom[];
+  symptoms: { id: string; severity: number }[];
+  habits?: string[];
+  flow?: 'light' | 'medium' | 'heavy';
   note?: string;
   createdAt: string;
   updatedAt?: string;

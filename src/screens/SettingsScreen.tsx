@@ -1,5 +1,6 @@
 ﻿import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert, Linking, Platform } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSelector, useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -7,12 +8,12 @@ import { RootState } from '../store';
 import { setPrefs } from '../store/slices/prefsSlice';
 import { setNotificationSettings, setPermissionGranted } from '../store/slices/notificationSlice';
 import { setSettings } from '../store/slices/settingsSlice';
-import { clearLogs } from '../store/slices/logsSlice';
-import { clearPeriods } from '../store/slices/periodsSlice';
+import { clearLogs, setLogs } from '../store/slices/logsSlice';
+import { clearPeriods, setPeriods } from '../store/slices/periodsSlice';
 import { useTheme } from '../theme/ThemeProvider';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-// ✅ TEK DOĞRU İMPORT
+// ✓ TEK DOĞRU İMPORT
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
@@ -31,6 +32,7 @@ import {
   Clock,
   Globe,
   Shield,
+  ChatCircleDots,
 } from 'phosphor-react-native';
 import SettingRow from '../components/settings/SettingRow';
 import LabeledSlider from '../components/settings/LabeledSlider';
@@ -47,12 +49,14 @@ import {
   cancelAllScheduledNotificationsAsync,
   checkNotificationPermission,
 } from '../services/notificationService';
+import { predictCycle } from '../services/prediction';
 import { exportDataToFile, importDataFromFile, mergeImportedData } from '../services/backupService';
 import * as Notifications from 'expo-notifications';
 
 
 export default function SettingsScreen() {
   const { colors, spacing, borderRadius, shadows, isDark, toggleTheme, setThemeMode } = useTheme();
+  const navigation = useNavigation<any>();
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
@@ -80,6 +84,30 @@ export default function SettingsScreen() {
   const [showPINModal, setShowPINModal] = useState(false);
   const [pinModalMode, setPinModalMode] = useState<'setup' | 'change' | 'remove'>('setup');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Bir sonraki period tarihini hesapla
+  const getNextPeriodDate = useCallback((): string | undefined => {
+    const today = new Date().toISOString().split('T')[0];
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 60); // 60 gün ilerisini tahmin et
+    const endDateStr = endDate.toISOString().split('T')[0];
+    
+    const predictions = predictCycle(
+      {
+        lastPeriodStart: prefs.lastPeriodStart,
+        avgCycleDays: prefs.avgCycleDays,
+        avgPeriodDays: prefs.avgPeriodDays,
+        periods,
+        logsDates: logs.map(l => l.date),
+      },
+      today,
+      endDateStr
+    );
+    
+    const futurePredictions = predictions.filter(p => p.date > today);
+    const nextPeriod = futurePredictions.find(p => p.phase === 'menstrual');
+    return nextPeriod?.date;
+  }, [prefs, periods, logs]);
 
   // İzin kontrolü, planlanan bildirim sayısı ve PIN durumu
   useEffect(() => {
@@ -136,7 +164,8 @@ export default function SettingsScreen() {
         dispatch(setPermissionGranted(true));
         
         // Bildirimleri planla
-        await scheduleNotifications(newSettings as any);
+        const nextPeriodDate = getNextPeriodDate();
+        await scheduleNotifications(newSettings, nextPeriodDate);
         await updateScheduledCount();
         
         setPermissionDenied(false);
@@ -163,7 +192,7 @@ export default function SettingsScreen() {
     const hours = date.getHours();
     const minutes = date.getMinutes();
     
-    // Yeni ayarı kaydet
+    // Yeni ayar� kaydet
     const newSettings = { 
       ...notificationSettings, 
       reminderTime: { hour: hours, minute: minutes } 
@@ -173,7 +202,8 @@ export default function SettingsScreen() {
     // Önce eski planları iptal et, sonra yeni planları oluştur
     if (notificationSettings?.enabled) {
       await cancelAllScheduledNotificationsAsync();
-      await scheduleNotifications(newSettings as any);
+      const nextPeriodDate = getNextPeriodDate();
+      await scheduleNotifications(newSettings, nextPeriodDate);
       await updateScheduledCount();
     }
     
@@ -186,7 +216,7 @@ export default function SettingsScreen() {
   }, [dispatch, notificationSettings]);
 
   const handleUpcomingPeriodDaysChange = useCallback(async (days: number) => {
-    // Yeni ayarı kaydet
+    // Yeni ayar� kaydet
     const newSettings = { 
       ...notificationSettings, 
       upcomingPeriodDays: days as 0 | 1 | 2 | 3 | 5 | 7
@@ -196,7 +226,8 @@ export default function SettingsScreen() {
     // Önce eski planları iptal et, sonra yeni planları oluştur
     if (notificationSettings?.enabled && days > 0) {
       await cancelAllScheduledNotificationsAsync();
-      await scheduleNotifications(newSettings as any);
+      const nextPeriodDate = getNextPeriodDate();
+      await scheduleNotifications(newSettings, nextPeriodDate);
       await updateScheduledCount();
     }
     
@@ -235,12 +266,12 @@ export default function SettingsScreen() {
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(fileUri, {
           mimeType: 'application/json',
-          dialogTitle: 'CycleMate Verileri Dışa Aktar',
+          dialogTitle: 'CycleMate Verileri D��a Aktar',
         });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setToast({ message: 'Yedek oluşturuldu', type: 'success' });
+        setToast({ message: 'Yedek olu�turuldu', type: 'success' });
       } else {
-        setToast({ message: 'Paylaşım özelliği desteklenmiyor', type: 'error' });
+        setToast({ message: 'Payla��m �zelli�i desteklenmiyor', type: 'error' });
       }
             } catch (error) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -261,7 +292,7 @@ export default function SettingsScreen() {
         const importResult = await importDataFromFile(fileUri);
         
         if (importResult.success && importResult.data) {
-          // Verileri birleştir
+          // Verileri birle�tir
           const currentState: RootState = {
             prefs,
             notification: notificationState,
@@ -273,10 +304,16 @@ export default function SettingsScreen() {
           const mergedData = mergeImportedData(currentState, importResult.data);
           
           // Store'u güncelle
-          if (mergedData.prefs) dispatch(setPrefs(mergedData.prefs as any));
-          if (mergedData.settings) dispatch(setSettings(mergedData.settings as any));
-          if (mergedData.notification) dispatch(setNotificationSettings(mergedData.notification as any));
-          // Logs ve periods için özel action'lar gerekebilir
+          if (mergedData.prefs) dispatch(setPrefs(mergedData.prefs));
+          if (mergedData.settings) dispatch(setSettings(mergedData.settings));
+          if (mergedData.notification) {
+            // mergedData.notification NotificationState ise settings'i kullan
+            const notifData = mergedData.notification;
+            const notificationSettings = 'settings' in notifData ? notifData.settings : notifData;
+            dispatch(setNotificationSettings(notificationSettings));
+          }
+          if (mergedData.logs) dispatch(setLogs(mergedData.logs));
+          if (mergedData.periods) dispatch(setPeriods(mergedData.periods));
           
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           setToast({ 
@@ -324,10 +361,10 @@ export default function SettingsScreen() {
       setShowDeleteConfirm(false);
       setDeleteConfirmText('');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setToast({ message: 'Her şey temizlendi ✨', type: 'success' });
+      setToast({ message: 'Her �ey temizlendi ?', type: 'success' });
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setToast({ message: 'Onay metni hatalı', type: 'error' });
+      setToast({ message: 'Onay metni hatal�', type: 'error' });
     }
   }, [deleteConfirmText, dispatch]);
 
@@ -366,7 +403,7 @@ export default function SettingsScreen() {
         setPinEnabled(true);
         setShowPINModal(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setToast({ message: pinModalMode === 'setup' ? 'PIN kuruldu' : 'PIN değiştirildi', type: 'success' });
+        setToast({ message: pinModalMode === 'setup' ? 'PIN kuruldu' : 'PIN de�i�tirildi', type: 'success' });
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         setToast({ message: 'PIN kaydedilemedi', type: 'error' });
@@ -403,7 +440,7 @@ export default function SettingsScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Gradient Başlık Kartı */}
+        {/* Gradient Ba�l�k Kart� */}
         <LinearGradient
           colors={['#FFB6EC', '#D6A3FF']}
           start={{ x: 0, y: 0 }}
@@ -788,7 +825,7 @@ export default function SettingsScreen() {
           marginBottom: 12,
         }}>
           <Text style={{ fontSize: 15, fontWeight: '600', color: '#92400E', marginBottom: 4 }}>
-            ⚕️ Tıbbi Uyarı
+            ⚠️ Tıbbi Uyarı
           </Text>
           <Text style={{ fontSize: 13, color: '#78350F', lineHeight: 18 }}>
             Bu uygulama tıbbi tavsiye yerine geçmez. Sağlık sorunlarınız için mutlaka bir doktora danışın.
@@ -933,7 +970,7 @@ export default function SettingsScreen() {
             maxWidth: 340,
           }}>
             <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#DC2626', marginBottom: 12, textAlign: 'center' }}>
-              ⚠️ Dikkat
+              ?? Dikkat
             </Text>
             <Text style={{ fontSize: 15, color: '#1F2937', marginBottom: 20, textAlign: 'center', lineHeight: 22 }}>
               Tüm verileriniz kalıcı olarak silinecek. Bu işlem geri alınamaz!
@@ -1040,3 +1077,4 @@ export default function SettingsScreen() {
     </SafeAreaView>
   );
 }
+

@@ -1,5 +1,7 @@
-﻿import { CyclePhase, PhaseInfo, Symptom } from '../types';
-import { apiClient, API_ENDPOINTS, USE_API, generateMockResponse } from './api';
+import { CyclePhase, PhaseInfo, Symptom } from '../types';
+import { getTips } from './knowledgeBase';
+import { getTipModelScores, MODEL_WEIGHT as MODEL_SCORE_WEIGHT } from './aiModel';
+import { TipRecord } from '../types/ai';
 
 export interface TipSuggestion {
   title: string;
@@ -8,326 +10,217 @@ export interface TipSuggestion {
   priority: 'high' | 'medium' | 'low';
 }
 
-// Semptom bazlı öneriler
-export async function getSuggestions(symptoms: Symptom[]): Promise<TipSuggestion[]> {
-  // API mode'da gerçek API'yi kullan
-  if (USE_API) {
-    try {
-      const response = await apiClient.post<TipSuggestion[]>(API_ENDPOINTS.TIPS_SUGGEST, {
-        symptoms,
-        userContext: {
-          // Kullanıcı bağlamı eklenebilir
-          phase: 'unknown', // Bu bilgi mevcut döngü fazından alınabilir
-        },
-      });
-      return response.data;
-    } catch (error) {
-      console.warn('API\'den öneri alınamadı, mock veri kullanılıyor:', error);
-      return getMockSuggestions(symptoms);
+export interface SuggestionOptions {
+  limit?: number;
+  phase?: CyclePhase | 'general';
+  mood?: string | null;
+  includeGeneralFallback?: boolean;
+  features?: number[];
+}
+
+const DEFAULT_LIMIT = 3;
+
+export async function getSuggestions(
+  symptoms: Symptom[],
+  options: SuggestionOptions = {}
+): Promise<TipSuggestion[]> {
+  // Offline: Direkt local suggestions kullan
+  return Promise.resolve(getLocalSuggestions(symptoms, options));
+}
+
+const mapTipToSuggestion = (tip: TipRecord, tagMatches: number): TipSuggestion => {
+  let priority: TipSuggestion['priority'] = 'low';
+  if (tagMatches >= 2) {
+    priority = 'high';
+  } else if (tagMatches === 1) {
+    priority = 'medium';
+  }
+
+  return {
+    title: tip.title,
+    content: tip.body,
+    source: tip.source ?? 'knowledge-base',
+    priority,
+  };
+};
+
+const computeFeatureBonus = (tip: TipRecord, features: number[], tagMatches: number): number => {
+  const moodFeature = features[0] ?? 0;
+  const symptomFeature = features[1] ?? 0;
+  const habitFeature = features[2] ?? 0;
+  const daysToNext = features[3] ?? 0;
+  const menstrualFlag = features[4] ?? 0;
+
+  const lowerTags = tip.tags.map((tag) => tag.toLowerCase());
+
+  let bonus = 0;
+
+  if (tip.phase === 'menstrual') {
+    bonus += menstrualFlag;
+  }
+  if (tip.phase === 'luteal') {
+    bonus += (1 - daysToNext) * 0.3;
+  }
+  if (tip.phase === 'follicular') {
+    bonus += moodFeature * 0.2;
+  }
+  if (tip.phase === 'ovulation') {
+    bonus += moodFeature * 0.3;
+  }
+
+  if (lowerTags.includes('selfcare') || lowerTags.includes('rest') || lowerTags.includes('calm')) {
+    bonus += (1 - habitFeature) * 0.2;
+  }
+
+  bonus += tagMatches * symptomFeature * 0.5;
+
+  return bonus;
+};
+
+const getLocalSuggestions = async (symptoms: Symptom[], options: SuggestionOptions): Promise<TipSuggestion[]> => {
+  const { limit = DEFAULT_LIMIT, phase, mood, includeGeneralFallback = true, features = [] } = options;
+  const normalizedSymptoms = symptoms.map((symptom) => symptom.toLowerCase());
+  const tipsList = getTips();
+
+  let modelScores: number[] | null = null;
+  if (features.length > 0) {
+    modelScores = await getTipModelScores(features);
+    if (modelScores && modelScores.length < tipsList.length) {
+      modelScores = [...modelScores, ...new Array(tipsList.length - modelScores.length).fill(0)];
     }
   }
-  
-  // Mock mode'da yerel veriyi kullan
-  return getMockSuggestions(symptoms);
-}
 
-// Mock öneriler (yerel veri)
-function getMockSuggestions(symptoms: Symptom[]): Promise<TipSuggestion[]> {
-  // Simulated API delay
-  return generateMockResponse(getLocalSuggestions(symptoms));
-}
+  const ranked = tipsList.map((tip, index) => {
+    const tags = tip.tags.map((tag) => tag.toLowerCase());
+    const tagMatches = normalizedSymptoms.filter((symptom) => tags.includes(symptom)).length;
+    const phaseMatch = phase ? (tip.phase === phase || tip.phase === 'general' ? 1 : 0) : 0;
+    const moodMatch = mood && tip.mood ? (tip.mood === mood ? 1 : 0) : 0;
+    const generalBoost = tip.phase === 'general' ? 0.2 : 0;
+    const featureBonus = computeFeatureBonus(tip, features, tagMatches);
+    const modelScore = modelScores && modelScores[index] !== undefined ? modelScores[index] : 0;
+    const score = tagMatches * 2 + phaseMatch + moodMatch + generalBoost + featureBonus + modelScore * MODEL_SCORE_WEIGHT;
+    return { tip, score, tagMatches };
+  });
 
-// Yerel öneri verileri (mevcut kod)
-function getLocalSuggestions(symptoms: Symptom[]): TipSuggestion[] {
-  const suggestions: TipSuggestion[] = [];
-  
-  // Ağrılar
-  if (symptoms.includes('cramp')) {
-    suggestions.push({
-      title: 'Kramplar için doğal çözümler',
-      content: 'Sıcak kompres uygulayın (15-20 dk). Hafif egzersiz (yoga, yürüyüş) kasları gevşetir. Magnezyum açısından zengin besinler tüketin (badem, ıspanak).',
-      source: 'Tıbbi Literatür',
-      priority: 'high',
-    });
-  }
-  
-  if (symptoms.includes('headache')) {
-    suggestions.push({
-      title: 'Baş ağrısını hafifleten yöntemler',
-      content: 'Günde 2-3 litre su için (dehidrasyon baş ağrısı tetikler). Karanlık ve sessiz bir ortamda dinlenin. Kafein tüketimini azaltın.',
-      source: 'Tıbbi Literatür',
-      priority: 'high',
-    });
-  }
-  
-  if (symptoms.includes('backPain')) {
-    suggestions.push({
-      title: 'Sırt ağrısı için rahatlama',
-      content: 'Sıcak duş alın veya ısı pedi kullanın. Hafif germe egzersizleri yapın. Doğru postürde oturmaya dikkat edin.',
-      source: 'Fizik Tedavi',
-      priority: 'medium',
-    });
-  }
-  
-  if (symptoms.includes('jointPain')) {
-    suggestions.push({
-      title: 'Eklem ağrısını azaltma',
-      content: 'Antiinflamatuar besinler tüketin (zencefil, zerdeçal). Hafif hareketler yapın, hareketsiz kalmayın. Bol su için.',
-      source: 'Tıbbi Literatür',
-      priority: 'medium',
-    });
-  }
-  
-  // Sindirim
-  if (symptoms.includes('bloating')) {
-    suggestions.push({
-      title: 'Şişkinliği azaltma ipuçları',
-      content: 'Tuz tüketimini sınırlayın (su tutmaya neden olur). Bol su için (paradoksal ama su tutmayı azaltır). Hafif yürüyüş yapın (sindirimi destekler).',
-      source: 'Beslenme Rehberi',
-      priority: 'medium',
-    });
-  }
-  
-  if (symptoms.includes('nausea')) {
-    suggestions.push({
-      title: 'Bulantıyı hafifletme',
-      content: 'Zencefil çayı içebilirsiniz. Küçük porsiyonlar halinde yemek yiyin. Narenciye kokları rahatlık sağlayabilir.',
-      source: 'Tıbbi Literatür',
-      priority: 'high',
-    });
-  }
-  
-  if (symptoms.includes('constipation')) {
-    suggestions.push({
-      title: 'Kabızlık için çözümler',
-      content: 'Lifli besinler tüketin (sebze, meyve, tam tahıl). Bol su için (günde 2-3 litre). Düzenli egzersiz yapın.',
-      source: 'Beslenme Rehberi',
-      priority: 'medium',
-    });
-  }
-  
-  if (symptoms.includes('diarrhea')) {
-    suggestions.push({
-      title: 'İshal yönetimi',
-      content: 'Bol sıvı tüketin (dehidrasyon önlemek için). Baharatli ve yağlı yiyeceklerden kaçının. Probiyotik içeren yoğurt tüketin.',
-      source: 'Tıbbi Literatür',
-      priority: 'high',
-    });
-  }
-  
-  // Cilt & Fiziksel
-  if (symptoms.includes('acne')) {
-    suggestions.push({
-      title: 'Hormonal akne yönetimi',
-      content: 'Yüzünüzü günde 2 kez hafif temizleyici ile yıkayın. Yastık kılıfınızı sık değiştirin. Yüzünüze dokunmamaya özen gösterin. Bu döngüsel bir durum ve normaldir.',
-      source: 'Dermatoloji Kılavuzu',
-      priority: 'low',
-    });
-  }
-  
-  if (symptoms.includes('breastTenderness')) {
-    suggestions.push({
-      title: 'Göğüs hassasiyetini azaltma',
-      content: 'Destekleyici sütyen kullanın. Kafein tüketimini azaltın. Soğuk kompres uygulayabilirsiniz.',
-      source: 'Tıbbi Literatür',
-      priority: 'medium',
-    });
-  }
-  
-  if (symptoms.includes('discharge')) {
-    suggestions.push({
-      title: 'Vajinal akıntı hakkında',
-      content: 'Ovulasyon döneminde berrak, kaygan akıntı normaldir. Pamuklu iç çamaşırı tercih edin. Koku veya renk değişimi varsa doktora danışın.',
-      source: 'Jinekoloji',
-      priority: 'low',
-    });
-  }
-  
-  // Enerji & Uyku
-  if (symptoms.includes('lowEnergy') || symptoms.includes('tired')) {
-    suggestions.push({
-      title: 'Enerji seviyenizi artırın',
-      content: 'Demir içeren besinler tüketin (kırmızı et, baklagiller, koyu yapraklı sebzeler). 7-9 saat uyuyun. Kısa power nap\'ler (20 dk) yardımcı olabilir.',
-      source: 'Beslenme Rehberi',
-      priority: 'medium',
-    });
-  }
-  
-  if (symptoms.includes('sleepy')) {
-    suggestions.push({
-      title: 'Uykuya dikkat',
-      content: 'Düzenli uyku saatlerine dikkat edin. Öğle uykusu çok uzun olmasın (20-30 dk ideal). Yatmadan önce ekranlardan uzak durun.',
-      source: 'Uyku Tıbbı',
-      priority: 'medium',
-    });
-  }
-  
-  if (symptoms.includes('insomnia')) {
-    suggestions.push({
-      title: 'Uyku kalitenizi iyileştirin',
-      content: 'Yatmadan 1 saat önce ekranlardan uzak durun. Oda sıcaklığını 18-20°C\'de tutun. Akşam kafein ve ağır yemeklerden kaçının.',
-      source: 'Uyku Tıbbı',
-      priority: 'high',
-    });
-  }
-  
-  // İştah
-  if (symptoms.includes('appetite') || symptoms.includes('cravings')) {
-    suggestions.push({
-      title: 'İştah değişikliklerini yönetin',
-      content: 'Karmaşık karbonhidratlar tüketin (tam tahıllar, sebzeler). Küçük ve sık öğünler tercih edin. Tatlı isteği için meyve seçin.',
-      source: 'Beslenme Rehberi',
-      priority: 'low',
-    });
-  }
-  
-  // Duygusal
-  if (symptoms.includes('anxious')) {
-    suggestions.push({
-      title: 'Anksiyeteyi azaltma',
-      content: 'Derin nefes egzersizleri yapın (4-7-8 tekniği). Meditasyon veya yoga deneyin. Hormonal değişiklikler duygularınızı etkileyebilir.',
-      source: 'Psikoloji Kaynakları',
-      priority: 'high',
-    });
-  }
-  
-  if (symptoms.includes('irritable')) {
-    suggestions.push({
-      title: 'Sinirlilik yönetimi',
-      content: 'Kendinize zaman ayırın. Hafif egzersiz yapın (endorfin salgılanır). Hormonal değişiklikler geçicidir, kendinize nazik olun.',
-      source: 'Psikoloji Kaynakları',
-      priority: 'high',
-    });
-  }
-  
-  if (symptoms.includes('focusIssues')) {
-    suggestions.push({
-      title: 'Konsantrasyon artırma',
-      content: 'Kısa molalar verin (Pomodoro tekniği). Bol su için. Omega-3 içeren besinler tüketin (balık, ceviz).',
-      source: 'Bilişsel Psikoloji',
-      priority: 'medium',
-    });
-  }
-  
-  // Genel öneriler (her zaman en az 3 öneri göster)
-  if (suggestions.length < 3) {
-    suggestions.push({
-      title: 'Genel sağlık ipuçları',
-      content: 'Bol su için (günde 2-3 litre). Düzenli hafif egzersiz yapın. Dengeli beslenin. Stres yönetimi tekniklerini deneyin.',
-      source: 'Genel Sağlık',
-      priority: 'low',
-    });
-  }
-  
-  // Priority'ye göre sırala
-  const priorityOrder = { high: 3, medium: 2, low: 1 };
-  return suggestions.sort((a, b) => priorityOrder[b.priority] - priorityOrder[a.priority]).slice(0, 3);
-}
+  ranked.sort((a, b) => b.score - a.score);
 
-// Faz bazlı motivasyon mesajları
+  const selected: TipSuggestion[] = [];
+  const used = new Set<string>();
+
+  for (const entry of ranked) {
+    if (selected.length >= limit) break;
+    if (entry.score <= 0 && !includeGeneralFallback) continue;
+    if (used.has(entry.tip.id)) continue;
+    selected.push(mapTipToSuggestion(entry.tip, entry.tagMatches));
+    used.add(entry.tip.id);
+  }
+
+  if (selected.length < limit && includeGeneralFallback) {
+    const fallback = tipsList.filter((tip) => tip.phase === 'general' && !used.has(tip.id));
+    for (const tip of fallback) {
+      if (selected.length >= limit) break;
+      selected.push(mapTipToSuggestion(tip, 0));
+      used.add(tip.id);
+    }
+  }
+
+  return selected.slice(0, limit);
+};
+
+
 export function getPhaseMotivation(phase: CyclePhase, cycleDay?: number): string {
   const motivations: Record<CyclePhase, string[]> = {
     menstrual: [
-      'Kendine nazik ol, dinlenmeye ihtiyacın var 🌸',
-      'Yavaşlamak cesaret gerektirir, bugün izin ver kendine 💕',
-      'Vücudun yenileniyor, bu güçlü bir süreç 🌺',
-      'Bugün rahat kıyafetler giy ve kendini şımartmayı unutma 🛀',
+      'Bugun kendine nazik ol, dinlenmeye izin ver.',
+      'Sicak icecekler ve yavas hareketler sana iyi gelir.',
+      'Vucudun guncelleniyor, ritmine guven.',
+      'Yumusak yogalar veya nefes egzersizleri dene.'
     ],
     follicular: [
-      'Enerjin yükseliyor! Yeni şeyler denemek için harika zaman 🌱',
-      'Bugün harika fırsatlar var, kapıları aç! 🌟',
-      'Yaratıcılığın zirvede, fikirlerini gerçekleştir! ✨',
-      'Hedeflerine odaklanman için mükemmel bir dönem 🎯',
+      'Enerjin yukseliyor, yeni hedefler koymak icin guzel bir gun.',
+      'Merak ettigin bir seyi ogrenmek icin kisa bir zaman ayir.',
+      'Kendini iyi hissettiren bir hareket ekle, kisa bir yuruyus bile olur.',
+      'Planlarini gozden gecir, yarataciligin yukseliyor.'
     ],
     ovulation: [
-      'Enerjin zirvede! Sosyalleşmek için mükemmel gün 💜',
-      'Kendini harika hissediyorsun ve öylesin! 🌟',
-      'İletişim yeteneğin bugün çok güçlü 💬',
-      'Bugün özgüvenin zirvede 💪',
+      'Parlamakta haklisin, sosyallesmek icin guzel firsatlar olabilir.',
+      'Kendine guvenin yuksek, duygularini paylasmaktan cekinme.',
+      'Kisa bir dans molasi veya sevilen bir parca ile enerji topla.',
+      'Arkadaslarinla minik bir kutlama planla.'
     ],
     luteal: [
-      'Self-care zamanı! Kendine özel vakit ayır 🛀',
-      'Yavaş ve sakin, bugün acele etmene gerek yok 🌙',
-      'Sezgilerin güçlü, içsel sesini dinle 🔮',
-      'Dinlenme ve iyileşme zamanı, buna izin ver 🌿',
+      'Tempoyu biraz dusur, nazik bir rutin olustur.',
+      'Magnezyumlu atistirmaliklar ve sicak icecekler seni rahatlatir.',
+      'Gerek duydugunda mola ver ve nefes calismasi yap.',
+      'Erken uyku ve yumusak hareketler dengeni korur.'
     ],
   };
-  
-  const messages = motivations[phase];
-  return messages[Math.floor(Math.random() * messages.length)];
+
+  const pool = motivations[phase];
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
-// Detaylı faz bilgileri
 export function getPhaseInfo(phase: CyclePhase): PhaseInfo {
-  const phaseData: Record<CyclePhase, PhaseInfo> = {
+  const data: Record<CyclePhase, PhaseInfo> = {
     menstrual: {
       phase: 'menstrual',
-      title: 'Menstrual Faz (Adet Dönemi)',
-      description: 'Uterus duvarı (endometrium) dökülüyor. Vücudun yeni bir döngüye hazırlanıyor.',
-      hormonInfo: 'Estrogen ve progesterone en düşük seviyede.',
+      title: 'Menstrual Faz (Adet Donemi)',
+      description: 'Rahim duvari yenileniyor; hafif hareketler ve dinlenme onemli.',
+      hormonInfo: 'Estrojen ve progesteron en dusuk seviyede.',
       commonSymptoms: ['cramp', 'headache', 'backPain', 'lowEnergy', 'tired'],
       tips: [
-        'Demir içeren besinler tüketin',
-        'Sıcak kompres kullanın',
-        'Hafif egzersiz yapın',
-        'Bol su için',
-        'Yeterli dinlenin',
+        'Demir iceren besinleri tercih et.',
+        'Sicak kompres ile kaslarini rahatlat.',
+        'Bol su ic ve yavas hareket et.',
+        'Kisa nefes egzersizleri yap.'
       ],
-      dayRange: 'Gün 1-5',
+      dayRange: 'Gun 1-5',
     },
     follicular: {
       phase: 'follicular',
-      title: 'Foliküler Faz (Enerji Yükseliyor)',
-      description: 'Yumurtalıklarda folikül gelişiyor, endometrium kalınlaşıyor. Enerji ve motivasyon artıyor.',
-      hormonInfo: 'Estrogen yükselişe geçiyor, FSH aktif.',
+      title: 'Folikuler Faz (Enerji Yukseliyor)',
+      description: 'Folikuller gelisirken enerji ve yaraticilik artar.',
+      hormonInfo: 'Estrojen yukselir, FSH aktif rol oynar.',
       commonSymptoms: [],
       tips: [
-        'Yüksek yoğunluklu egzersizler yapın',
-        'Yeni projeler başlatın',
-        'Sosyal aktivitelere katılın',
-        'Yaratıcı işlerle uğraşın',
+        'Yogun egzersizlere bu fazda basla.',
+        'Yeni fikirler ve planlar icin beyin firtinasi yap.',
+        'Sosyal aktivitelerden destek al.',
+        'Bol su ic, guclu hissini koru.'
       ],
-      dayRange: 'Gün 6-13',
+      dayRange: 'Gun 6-13',
     },
     ovulation: {
       phase: 'ovulation',
-      title: 'Ovulasyon Fazı (Döl Verimlilik Zirvesi)',
-      description: 'Yumurta serbest bırakılıyor. Enerji, libido ve sosyal beceriler zirvede.',
-      hormonInfo: 'LH surge (ani artış), yumurta foliküleden çıkıyor.',
+      title: 'Ovulasyon Faz (En Verimli Donem)',
+      description: 'Yumurta serbest kalir, enerji ve iletisim gucu artar.',
+      hormonInfo: 'LH yukselir, yumurta folikulu terk eder.',
       commonSymptoms: ['discharge', 'breastTenderness'],
       tips: [
-        'Hamilelik planlıyorsanız: en verimli dönem',
-        'Planlamıyorsanız: ekstra koruma',
-        'Bol su için (akıntı artışı normal)',
-        'Sosyal aktivitelerin tadını çıkarın',
+        'Sosyal veya is etkinlikleri icin iyi bir zaman.',
+        'Sudan zengin besinler tuket.',
+        'Planlama yaparken enerjinden yararlan.',
+        'Hedeflerini paylas, destek iste.'
       ],
-      dayRange: 'Gün 14 (±2)',
+      dayRange: 'Gun 14 (+/-2)',
     },
     luteal: {
       phase: 'luteal',
-      title: 'Luteal Faz (Sakinleşme Dönemi)',
-      description: 'Corpus luteum progesterone salgılıyor. Geç dönemde PMS semptomları başlayabilir.',
-      hormonInfo: 'Progesterone yüksek, ardından estrogen ve progesterone düşüşe geçer.',
-      commonSymptoms: [
-        'bloating',
-        'breastTenderness',
-        'acne',
-        'appetite',
-        'irritable',
-        'anxious',
-        'lowEnergy',
-      ],
+      title: 'Luteal Faz (Yavaslama Donemi)',
+      description: 'Progesteron artar, PMS belirtileri gorulebilir.',
+      hormonInfo: 'Progesteron yuksek kalir, sonra yavasca azalir.',
+      commonSymptoms: ['bloating', 'breastTenderness', 'acne', 'appetite', 'irritable', 'anxious', 'lowEnergy'],
       tips: [
-        'Düşük yoğunluklu egzersiz (yoga, pilates)',
-        'Magnezyum/B6 takviyeleri',
-        'Karmaşık karbonhidratlar tüketin',
-        'Kafein/tuz azaltın',
-        'Self-care ritüelleri yapın',
-        'Yeterli uyuyun',
+        'Yumusak hareketler veya yoga sec.',
+        'Magnezyum ve B6 iceren besinler ekle.',
+        'Tuz ve kafeini azalt.',
+        'Erken uyumaya ozen goster.',
+        'Self-care rutinleri planla.'
       ],
-      dayRange: 'Gün 15-28',
+      dayRange: 'Gun 15-28',
     },
   };
-  
-  return phaseData[phase];
+
+  return data[phase];
 }
+

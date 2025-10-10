@@ -1,4 +1,5 @@
-﻿import { DailyLog, Symptom, PeriodSpan, CycleStats, MoodTrend, Mood } from '../types';
+import { DailyLog, Symptom, PeriodSpan, CycleStats, MoodTrend, Mood } from '../types';
+import { extractSymptomIds } from './symptomUtils';
 
 // Basit matematiksel fonksiyonlar
 export function mean(nums: number[]): number {
@@ -19,7 +20,8 @@ export function calculateSymptomFrequency(logs: DailyLog[]): Record<Symptom, num
   const freq: Record<string, number> = {};
   
   logs.forEach(log => {
-    log.symptoms.forEach(symptom => {
+    const symptomIds = extractSymptomIds(log.symptoms);
+    symptomIds.forEach(symptom => {
       freq[symptom] = (freq[symptom] || 0) + 1;
     });
   });
@@ -133,16 +135,17 @@ export function getMoodScore(mood: string): number {
   return scores[mood] || 5;
 }
 
-// Enerji seviyesi hesaplama (flow ve mood'dan türetilir)
+// Enerji seviyesi hesaplama (mood'dan türetilir)
 export function calculateEnergyLevels(logs: DailyLog[]) {
   return logs
-    .filter(l => l.mood || l.flow)
+    .filter(l => l.mood)
     .slice(-14)
     .map((log, idx) => {
       let energy = 5;
       if (log.mood === 'ecstatic' || log.mood === 'happy') energy = 8;
+      if (log.mood === 'calm') energy = 6;
+      if (log.mood === 'anxious') energy = 4;
       if (log.mood === 'tired' || log.mood === 'sad') energy = 3;
-      if (log.flow === 'heavy') energy = Math.max(2, energy - 2);
       return { date: log.date, value: energy, index: idx + 1 };
     });
 }
@@ -154,8 +157,9 @@ export function calculateSleepTrend(logs: DailyLog[]) {
     .map((log, idx) => {
       let sleep = 7; // varsayılan
       if (log.mood === 'tired') sleep = 6;
-      if (log.symptoms.includes('insomnia' as any)) sleep = 4;
-      if (log.symptoms.includes('headache' as any)) sleep -= 1;
+      const symptomIds = extractSymptomIds(log.symptoms);
+      if (symptomIds.includes('insomnia')) sleep = 4;
+      if (symptomIds.includes('headache')) sleep -= 1;
       return { date: log.date, value: Math.max(4, Math.min(10, sleep)), index: idx + 1 };
     });
 }
@@ -211,7 +215,7 @@ export function getMoodSymptomIntersection(logs: DailyLog[]) {
         moodSymptomMap[log.mood] = { count: 0, symptoms: [] };
       }
       moodSymptomMap[log.mood].count += 1;
-      moodSymptomMap[log.mood].symptoms.push(...log.symptoms);
+      moodSymptomMap[log.mood].symptoms.push(...extractSymptomIds(log.symptoms));
     }
   });
   
@@ -227,9 +231,10 @@ export function generatePersonalInsights(logs: DailyLog[], periods: PeriodSpan[]
   const insights: string[] = [];
   
   // 1. Adet öncesi semptom
-  const prePeriodLogs = logs.slice(-7).filter(l => l.symptoms.length > 0);
+  const prePeriodLogs = logs.slice(-7).filter(l => extractSymptomIds(l.symptoms).length > 0);
   if (prePeriodLogs.length >= 3) {
-    const commonSymptom = prePeriodLogs[0]?.symptoms[0];
+    const firstIds = extractSymptomIds(prePeriodLogs[0].symptoms);
+    const commonSymptom = firstIds[0];
     if (commonSymptom) {
       insights.push(`Son 3 döngüdür adet öncesi **${commonSymptom}** yaşıyorsun 💆‍♀️`);
     }

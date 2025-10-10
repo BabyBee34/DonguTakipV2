@@ -1,13 +1,14 @@
-﻿import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, useWindowDimensions, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
+import { CyclePhase, CyclePrefs, PeriodSpan, Symptom } from '../types';
 import { addPeriod, updatePeriod } from '../store/slices/periodsSlice';
 import { predictCycle } from '../services/prediction';
-import { getPhaseMotivation, getPhaseInfo } from '../services/tipsService';
-import { toISO, getTodayISO } from '../utils/date';
+import { getPhaseMotivation, getPhaseInfo, getSuggestions, TipSuggestion } from '../services/tipsService';
+import { toISO, getTodayISO, addDays, daysBetween } from '../utils/date';
 import { useTheme } from '../theme/ThemeProvider';
 import Modal from '../components/Modal';
 import SectionCard from '../components/SectionCard';
@@ -15,16 +16,63 @@ import GradientButton from '../components/GradientButton';
 import CalendarGrid from '../components/CalendarGrid';
 import CycleLegendCard from '../components/CycleLegendCard';
 import MoodPicker, { moodLine, type Mood } from '../components/MoodPicker';
-import { AI_ENABLED, getDailySmartTipPlaceholder, getInsightsPlaceholder, getMotivationPlaceholder } from '../services/aiPlaceholders';
+import { getDailySmartTipPlaceholder, getInsightsPlaceholder, getMotivationPlaceholder } from '../services/aiPlaceholders';
 import { trackMoodForAI } from '../services/aiHooks';
 import { useConfirm } from '../utils/confirm';
 import { themeColors, spacing as themeSpacing, brand } from '../theme';
 // @ts-ignore
 import { v4 as uuidv4 } from 'uuid';
 import { useTranslation } from 'react-i18next';
+import { normalizeSymptomEntries } from '../services/symptomUtils';
+import { buildTipFeatures } from '../services/featureBuilder';
+import { getAIInsights, AIOutput } from '../services/aiModel';
 
 const WEEKDAYS = ['PZT', 'SAL', 'ÇAR', 'PER', 'CUM', 'CMT', 'PAZ'];
 
+const inferPhaseForDate = (
+  isoDate: string,
+  prefs: CyclePrefs,
+  periods: PeriodSpan[]
+): CyclePhase | undefined => {
+  const avgPeriodLength = Math.max(1, prefs?.avgPeriodDays ?? 5);
+
+  const withinRecordedPeriod = periods.some((period) => {
+    if (!period.start) return false;
+    const end = period.end ?? addDays(period.start, avgPeriodLength - 1);
+    return isoDate >= period.start && isoDate <= end;
+  });
+
+  if (withinRecordedPeriod) {
+    return 'menstrual';
+  }
+
+  const cycleLength = prefs?.avgCycleDays ?? 0;
+  if (!cycleLength) {
+    return undefined;
+  }
+
+  let referenceStart = prefs?.lastPeriodStart;
+  const historicalStarts = periods
+    .map((period) => period.start)
+    .filter((start): start is string => Boolean(start) && start <= isoDate)
+    .sort((a, b) => (a > b ? -1 : 1));
+
+  if (historicalStarts.length > 0) {
+    referenceStart = historicalStarts[0];
+  }
+
+  if (!referenceStart) {
+    return undefined;
+  }
+
+  const diff = daysBetween(referenceStart, isoDate);
+  const normalizedDiff = ((diff % cycleLength) + cycleLength) % cycleLength;
+
+  if (normalizedDiff < avgPeriodLength) return 'menstrual';
+  if (normalizedDiff < 13) return 'follicular';
+  if (normalizedDiff < 16) return 'ovulation';
+  return 'luteal';
+};
 export default function CalendarScreen({ navigation }: any) {
   const { colors, spacing, borderRadius, shadows, gradients } = useTheme();
   const { t, i18n } = useTranslation();
@@ -39,6 +87,12 @@ export default function CalendarScreen({ navigation }: any) {
   const [phaseModalVisible, setPhaseModalVisible] = useState(false);
   const [moodOpen, setMoodOpen] = useState(false);
   const [mood, setMood] = useState<Mood | null>(null);
+  const [calendarSuggestions, setCalendarSuggestions] = useState<TipSuggestion[]>([]);
+  const [isLoadingCalendarSuggestions, setIsLoadingCalendarSuggestions] = useState(false);
+  
+  // AI Insights state
+  const [aiInsights, setAIInsights] = useState<AIOutput | null>(null);
+  const [isLoadingAI, setIsLoadingAI] = useState(false);
   const { width } = useWindowDimensions();
   const compact = width < 370; // Küçük ekranlar için kompakt mod
   
@@ -168,36 +222,119 @@ export default function CalendarScreen({ navigation }: any) {
 
   // Motivasyon mesajı & AI placeholders
   const todayPrediction = predictions.find(p => p.isToday);
+  const todayIso = useMemo(() => getTodayISO(), []);
+  const todayLog = useMemo(() => logs.find((log) => log.date === todayIso), [logs, todayIso]);
+  const todaySymptoms = useMemo(() => normalizeSymptomEntries(todayLog?.symptoms), [todayLog]);
+  const todaySymptomIds = useMemo(() => todaySymptoms.map((item) => item.id as Symptom), [todaySymptoms]);
+  const todayFeatureVector = useMemo(() => buildTipFeatures({ log: todayLog, prefs, periods, today: todayIso }), [todayLog, prefs, periods, todayIso]);
+  const phaseHint = todayPrediction?.phase ?? inferPhaseForDate(todayIso, prefs, periods);
+  const moodHint = mood ?? todayLog?.mood ?? null;
+
   const motivationMessage = getMotivationPlaceholder();
+  useEffect(() => {
+    let cancelled = false;
+
+    if (todaySymptomIds.length === 0 && !moodHint) {
+      setCalendarSuggestions([]);
+      setIsLoadingCalendarSuggestions(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setIsLoadingCalendarSuggestions(true);
+
+    getSuggestions(todaySymptomIds, {
+      mood: moodHint ?? null,
+      phase: phaseHint,
+      includeGeneralFallback: true,
+      limit: 2,
+      features: todayFeatureVector,
+    })
+      .then((results) => {
+        if (!cancelled) {
+          setCalendarSuggestions(results);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCalendarSuggestions([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingCalendarSuggestions(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [todaySymptomIds, moodHint, phaseHint, todayFeatureVector]);
+
+  // AI Insights yükleme
+  useEffect(() => {
+    let cancelled = false;
+
+    setIsLoadingAI(true);
+
+    getAIInsights(logs, periods, prefs, todayIso)
+      .then((insights) => {
+        if (!cancelled && insights) {
+          setAIInsights(insights);
+        }
+      })
+      .catch((error) => {
+        console.warn('AI insights yüklenemedi:', error);
+        if (!cancelled) {
+          setAIInsights(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingAI(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [logs, periods, prefs, todayIso]);
+
   const insights = useMemo(() => getInsightsPlaceholder(), []);
   const smartTip = getDailySmartTipPlaceholder();
 
   // Mood-based öneri metni
-  const moodCopy: Record<Mood, string> = {
-    harika: 'Harika enerji! Bugün planına sevdiğin bir aktivite ekle ✨',
-    iyi: 'Güzel gidiyor. Mini bir yürüyüş iyi gelir 🚶‍♀️',
-    idare: 'Kendine nazik ol; küçük molalar ver ☕',
-    yorgun: 'Dinlenmek hak. Suyu ihmal etme 💧',
-    agrili: 'Sıcak kompres ve hafif esneme deneyebilirsin 🌿',
-  };
-
-  // Calendar Grid formatına dönüştür
+  // Calendar Grid formatına dönüştür - AI tahminleriyle
   const gridDays = useMemo(() => {
     return calendarDays.map((day, idx) => {
       const dayISO = toISO(day);
       const prediction = predictions.find(p => p.date === dayISO);
       
       let kind: 'adet' | 'fertil' | 'ovu' | 'tahmini' | 'today' | 'none' = 'none';
+      let aiConfidence = 0;
       
       if (prediction) {
         if (prediction.isMenstrual) {
           kind = 'adet';
         } else if (prediction.isPredictedMenstrual) {
           kind = 'tahmini';
+          // AI güven skoru ekle
+          if (aiInsights) {
+            aiConfidence = aiInsights.predictions.nextPeriod.confidence;
+          }
         } else if (prediction.isOvulation) {
           kind = 'ovu';
+          // AI güven skoru ekle
+          if (aiInsights) {
+            aiConfidence = aiInsights.predictions.ovulation.confidence;
+          }
         } else if (prediction.isFertile) {
           kind = 'fertil';
+          // AI güven skoru ekle
+          if (aiInsights) {
+            aiConfidence = aiInsights.predictions.fertileWindow.confidence;
+          }
         }
         
         if (prediction.isToday) {
@@ -209,10 +346,11 @@ export default function CalendarScreen({ navigation }: any) {
         key: `day-${idx}`,
         label: day.getDate().toString(),
         kind,
+        aiConfidence, // AI güven skoru
         onPress: () => navigation.navigate('DailyLog', { date: dayISO }),
       };
     });
-  }, [calendarDays, predictions, navigation]);
+  }, [calendarDays, predictions, navigation, aiInsights]);
 
   // Ay adı (locale'e göre)
   const monthYear = currentDate.toLocaleDateString(i18n.language === 'tr' ? 'tr-TR' : 'en-US', {
@@ -350,26 +488,79 @@ export default function CalendarScreen({ navigation }: any) {
             />
           </View>
 
-          {/* Mini Öneri (AI Placeholder) */}
+          {/* AI Öneriler */}
           <SectionCard style={{ backgroundColor: themeColors.rose, padding: themeSpacing(2) }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: themeSpacing(1) }}>
               <Text style={{ fontWeight: '700', color: themeColors.text, fontSize: 15 }}>
-                Bugün için öneri
+                {aiInsights ? '🤖 AI Önerileri' : 'Bugün için öneri'}
               </Text>
-              {!AI_ENABLED && (
-                <View style={{ 
-                  backgroundColor: themeColors.pink, 
-                  borderRadius: 12, 
-                  paddingHorizontal: 8, 
-                  paddingVertical: 4 
-                }}>
-                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#FFF' }}>YAKINDA</Text>
-                </View>
+              {isLoadingAI && (
+                <Text style={{ fontSize: 11, color: themeColors.sub }}>AI analiz ediyor...</Text>
+              )}
+              {!aiInsights && isLoadingCalendarSuggestions && (
+                <Text style={{ fontSize: 11, color: themeColors.sub }}>Hazırlanıyor...</Text>
               )}
             </View>
-            <Text style={{ color: themeColors.text, fontSize: 14, lineHeight: 20 }}>
-              {mood ? moodCopy[mood] : smartTip.body}
-            </Text>
+            
+            {aiInsights ? (
+              <View>
+                {/* AI Tahminleri */}
+                <View style={{ marginBottom: themeSpacing(1) }}>
+                  <Text style={{ fontWeight: '600', color: themeColors.text, fontSize: 13, marginBottom: 4 }}>
+                    📅 Döngü Durumu
+                  </Text>
+                  <Text style={{ color: themeColors.text, fontSize: 12, lineHeight: 18 }}>
+                    {aiInsights.predictions.phase.name === 'menstrual' && '🌸 Adet dönemindesin'}
+                    {aiInsights.predictions.phase.name === 'follicular' && '🌱 Foliküler faz - enerji yükseliyor'}
+                    {aiInsights.predictions.phase.name === 'ovulation' && '💜 Ovulasyon dönemi - en doğurgan zaman'}
+                    {aiInsights.predictions.phase.name === 'luteal' && '🍂 Luteal faz - dinlenme zamanı'}
+                    {' '}({aiInsights.predictions.phase.dayInCycle}. gün)
+                  </Text>
+                </View>
+
+                {/* Semptom Tahminleri */}
+                {aiInsights.symptoms.predictedSymptoms.length > 0 && (
+                  <View style={{ marginBottom: themeSpacing(1) }}>
+                    <Text style={{ fontWeight: '600', color: themeColors.text, fontSize: 13, marginBottom: 4 }}>
+                      🔮 Beklenen Semptomlar
+                    </Text>
+                    <Text style={{ color: themeColors.text, fontSize: 12, lineHeight: 18 }}>
+                      {aiInsights.symptoms.predictedSymptoms.slice(0, 3).map(s => s.id).join(', ')}
+                    </Text>
+                  </View>
+                )}
+
+                {/* AI Önerileri */}
+                {aiInsights.recommendations.tips.length > 0 && (
+                  <View>
+                    <Text style={{ fontWeight: '600', color: themeColors.text, fontSize: 13, marginBottom: 4 }}>
+                      💡 AI Önerisi
+                    </Text>
+                    <Text style={{ color: themeColors.text, fontSize: 12, lineHeight: 18 }}>
+                      {aiInsights.recommendations.tips[0].reason}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Güven Skoru */}
+                <View style={{ marginTop: themeSpacing(1), flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ color: themeColors.sub, fontSize: 11 }}>
+                    AI Güveni: %{Math.round(aiInsights.confidence * 100)}
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <View>
+                <Text style={{ color: themeColors.text, fontSize: 14, lineHeight: 20 }}>
+                  {calendarSuggestions.length > 0 ? calendarSuggestions[0].content : smartTip.body}
+                </Text>
+                {calendarSuggestions.length > 0 && (
+                  <Text style={{ color: themeColors.sub, fontSize: 12, marginTop: themeSpacing(1) }}>
+                    Kaynak: {calendarSuggestions[0].source}
+                  </Text>
+                )}
+              </View>
+            )}
           </SectionCard>
 
           {/* Faz Bilgi Kartı */}
@@ -427,11 +618,21 @@ export default function CalendarScreen({ navigation }: any) {
             />
           </SectionCard>
 
-          {/* Gizlilik Rozeti */}
+          {/* AI Durum Rozeti */}
           <View style={{ alignSelf: 'center', marginTop: themeSpacing(1), marginBottom: themeSpacing(2) }}>
-            <Text style={{ color: themeColors.sub, fontSize: 11, textAlign: 'center' }}>
-              🔒 Verilerin sadece cihazında — AI henüz bağlı değil
-            </Text>
+            {isLoadingAI ? (
+              <Text style={{ color: themeColors.sub, fontSize: 11, textAlign: 'center' }}>
+                🧠 AI analiz ediyor...
+              </Text>
+            ) : aiInsights ? (
+              <Text style={{ color: themeColors.sub, fontSize: 11, textAlign: 'center' }}>
+                🤖 AI Aktif • Güven: %{Math.round(aiInsights.confidence * 100)} • Güncelleme: {aiInsights.lastUpdated}
+              </Text>
+            ) : (
+              <Text style={{ color: themeColors.sub, fontSize: 11, textAlign: 'center' }}>
+                🔒 Verilerin sadece cihazında • AI bağlantısı yok
+              </Text>
+            )}
           </View>
         </ScrollView>
       </LinearGradient>
@@ -538,3 +739,13 @@ export default function CalendarScreen({ navigation }: any) {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+

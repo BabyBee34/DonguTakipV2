@@ -94,13 +94,13 @@ export default function Toast({
   const getIconName = () => {
     switch (type) {
       case 'success':
-        return 'checkmark-circle';
+        return 'check-circle';
       case 'error':
-        return 'close-circle';
+        return 'error';
       case 'warning':
         return 'warning';
       default: // info
-        return 'information-circle';
+        return 'info';
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
 import { addLog, updateLog } from '../store/slices/logsSlice';
-import { getTodayISO } from '../utils/date';
+import { getTodayISO, daysBetween, addDays } from '../utils/date';
 import { useThemeColors } from '../theme';
 import SectionCard from '../components/SectionCard';
 import SegmentedMoodControl, { type MoodKey } from '../components/SegmentedMoodControl';
@@ -29,11 +29,76 @@ import Toast from '../components/Toast';
 import { SYMPTOM_CATEGORIES, getSymptomInfo } from '../data/symptomData';
 // @ts-ignore
 import { v4 as uuidv4 } from 'uuid';
+import { Symptom, CyclePhase, CyclePrefs, PeriodSpan } from '../types';
+import { getSuggestions, TipSuggestion } from '../services/tipsService';
+import { normalizeSymptomEntries, extractSymptomIds, NormalizedSymptom } from '../services/symptomUtils';
+import { buildTipFeatures } from '../services/featureBuilder';
 
-interface SymptomSelection {
-  id: string;
-  severity: number; // 0, 1, 2, 3
-}
+type SymptomSelection = NormalizedSymptom;
+
+const areSymptomListsEqual = (a: SymptomSelection[], b: SymptomSelection[]) => {
+  if (a.length !== b.length) return false;
+  const sortById = (arr: SymptomSelection[]) =>
+    [...arr].sort((x, y) => x.id.localeCompare(y.id));
+  const sortedA = sortById(a);
+  const sortedB = sortById(b);
+  return sortedA.every(
+    (item, idx) => item.id === sortedB[idx].id && item.severity === sortedB[idx].severity
+  );
+};
+
+const areHabitListsEqual = (a: HabitKey[], b: HabitKey[]) => {
+  if (a.length !== b.length) return false;
+  const sort = (arr: HabitKey[]) => [...arr].sort();
+  const sortedA = sort(a);
+  const sortedB = sort(b);
+  return sortedA.every((item, idx) => item === sortedB[idx]);
+};
+
+const inferPhaseForDate = (
+  isoDate: string,
+  prefs: CyclePrefs,
+  periods: PeriodSpan[]
+): CyclePhase | undefined => {
+  const avgPeriodLength = Math.max(1, prefs?.avgPeriodDays ?? 5);
+
+  const isWithinRecordedPeriod = periods.some((period) => {
+    if (!period.start) return false;
+    const end = period.end ?? addDays(period.start, avgPeriodLength - 1);
+    return isoDate >= period.start && isoDate <= end;
+  });
+
+  if (isWithinRecordedPeriod) {
+    return 'menstrual';
+  }
+
+  const cycleLength = prefs?.avgCycleDays ?? 0;
+  if (!cycleLength) {
+    return undefined;
+  }
+
+  let referenceStart = prefs?.lastPeriodStart;
+  const historicalStarts = periods
+    .map((period) => period.start)
+    .filter((start): start is string => Boolean(start) && start <= isoDate)
+    .sort((a, b) => (a > b ? -1 : 1));
+
+  if (historicalStarts.length > 0) {
+    referenceStart = historicalStarts[0];
+  }
+
+  if (!referenceStart) {
+    return undefined;
+  }
+
+  const diff = daysBetween(referenceStart, isoDate);
+  const normalizedDiff = ((diff % cycleLength) + cycleLength) % cycleLength;
+
+  if (normalizedDiff < avgPeriodLength) return 'menstrual';
+  if (normalizedDiff < 13) return 'follicular';
+  if (normalizedDiff < 16) return 'ovulation';
+  return 'luteal';
+};
 
 export default function DailyLogScreen({ route, navigation }: any) {
   const c = useThemeColors();
@@ -41,22 +106,131 @@ export default function DailyLogScreen({ route, navigation }: any) {
   const tabBarHeight = useBottomTabBarHeight();
   const dispatch = useDispatch();
   const logs = useSelector((state: RootState) => state.logs);
+  const prefs = useSelector((state: RootState) => state.prefs);
+  const periods = useSelector((state: RootState) => state.periods);
 
   const selectedDate = route?.params?.date || getTodayISO();
   const existingLog = logs.find((l) => l.date === selectedDate);
 
-  // State
-  const [mood, setMood] = useState<MoodKey | undefined>(existingLog?.mood as MoodKey);
-  const [symptoms, setSymptoms] = useState<SymptomSelection[]>([]);
-  const [habits, setHabits] = useState<HabitKey[]>([]);
+  const initialMood = useMemo(() => existingLog?.mood as MoodKey | undefined, [existingLog]);
+  const initialSymptoms = useMemo(
+    () => normalizeSymptomEntries(existingLog?.symptoms),
+    [existingLog]
+  );
+  const initialHabits = useMemo(
+    () => (Array.isArray(existingLog?.habits) ? (existingLog?.habits as HabitKey[]) : []),
+    [existingLog]
+  );
+  const initialNote = useMemo(() => (existingLog?.note || '').trim(), [existingLog]);
+
+  const [mood, setMood] = useState<MoodKey | undefined>(initialMood);
+  const [symptoms, setSymptoms] = useState<SymptomSelection[]>(initialSymptoms);
+  const [habits, setHabits] = useState<HabitKey[]>(initialHabits);
   const [note, setNote] = useState(existingLog?.note || '');
   const [infoSheet, setInfoSheet] = useState<any>(null);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error' | 'warning' | 'info'>('success');
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<TipSuggestion[]>([]);
 
-  const hasChanges = mood || symptoms.length > 0 || habits.length > 0 || note.trim();
+  useEffect(() => {
+    setMood(initialMood);
+    setSymptoms(initialSymptoms);
+    setHabits(initialHabits);
+    setNote(existingLog?.note || '');
+  }, [initialMood, initialSymptoms, initialHabits, existingLog?.id]);
+
+  const symptomIdsForSuggestions = useMemo(
+    () => extractSymptomIds(symptoms).map((id) => id as Symptom),
+    [symptoms]
+  );
+
+  const previewLog = useMemo(
+    () => ({
+      id: existingLog?.id ?? 'preview',
+      date: selectedDate,
+      mood: mood ?? existingLog?.mood,
+      symptoms: symptoms.map((item) => ({ id: item.id, severity: item.severity })),
+      habits,
+      note: note.trim(),
+      createdAt: existingLog?.createdAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }),
+    [existingLog?.id, existingLog?.mood, existingLog?.createdAt, selectedDate, mood, symptoms, habits, note]
+  );
+
+  const featureVector = useMemo(
+    () =>
+      buildTipFeatures({
+        log: previewLog,
+        prefs,
+        periods,
+        today: selectedDate,
+      }),
+    [previewLog, prefs, periods, selectedDate]
+  );
+
+  const phaseHint = useMemo(
+    () => inferPhaseForDate(selectedDate, prefs, periods),
+    [selectedDate, prefs, periods]
+  );
+
+  const hasChanges = useMemo(() => {
+    const trimmedNote = note.trim();
+    if (!existingLog) {
+      return Boolean(mood || symptoms.length > 0 || habits.length > 0 || trimmedNote);
+    }
+
+    const moodChanged = (mood ?? undefined) !== (initialMood ?? undefined);
+    const symptomsChanged = !areSymptomListsEqual(symptoms, initialSymptoms);
+    const habitsChanged = !areHabitListsEqual(habits, initialHabits);
+    const noteChanged = trimmedNote !== initialNote;
+
+    return moodChanged || symptomsChanged || habitsChanged || noteChanged;
+  }, [existingLog, mood, symptoms, habits, note, initialMood, initialSymptoms, initialHabits, initialNote]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (symptomIdsForSuggestions.length === 0 && !mood) {
+      setSuggestions([]);
+      setIsLoadingSuggestions(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setIsLoadingSuggestions(true);
+
+    getSuggestions(symptomIdsForSuggestions, {
+      mood: mood ?? null,
+      phase: phaseHint,
+      includeGeneralFallback: true,
+      limit: 3,
+      features: featureVector,
+    })
+      .then((results) => {
+        if (!cancelled) {
+          setSuggestions(results);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSuggestions([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingSuggestions(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [symptomIdsForSuggestions, mood, phaseHint, featureVector]);
 
   // Semptom toggle (şiddet döngüsü: 0 → 1 → 2 → 3 → 0)
   const toggleSymptom = useCallback((id: string) => {
@@ -324,26 +498,44 @@ export default function DailyLogScreen({ route, navigation }: any) {
             </Text>
           </SectionCard>
 
-          {/* AI Placeholder (Yakında) */}
+          {/* Kisisel oneriler */}
           <SectionCard style={{ backgroundColor: '#FFF9E6', padding: 16, marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
               <Text style={{ fontSize: 15, fontWeight: '700', color: c.text }}>
-                Kişisel Öneriler
+                Kisisel Oneriler
               </Text>
-              <View
-                style={{
-                  backgroundColor: '#FFA726',
-                  borderRadius: 10,
-                  paddingHorizontal: 8,
-                  paddingVertical: 3,
-                }}
-              >
-                <Text style={{ fontSize: 10, fontWeight: '700', color: '#FFF' }}>YAKINDA</Text>
-              </View>
+              {isLoadingSuggestions && (
+                <Text style={{ fontSize: 11, color: c.textDim }}>Hazirlaniyor...</Text>
+              )}
             </View>
-            <Text style={{ fontSize: 13, color: c.text, lineHeight: 18 }}>
-              Ruh halin ve semptomlarına göre kişisel öneriler burada görünecek. AI henüz bağlı değil.
-            </Text>
+
+            {suggestions.length === 0 && !isLoadingSuggestions ? (
+              <Text style={{ fontSize: 13, color: c.text, lineHeight: 18 }}>
+                Ruh halini veya semptomlarini ekledikce ozel oneriler burada gorunecek.
+              </Text>
+            ) : (
+              suggestions.map((item, index) => (
+                <View
+                  key={`${item.title}-${index}`}
+                  style={{
+                    marginBottom: index === suggestions.length - 1 ? 0 : 12,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: '#FFFFFF',
+                  }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: c.text, marginBottom: 6 }}>
+                    {item.title}
+                  </Text>
+                  <Text style={{ fontSize: 13, color: '#4B5563', lineHeight: 18 }}>
+                    {item.content}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 8 }}>
+                    Kaynak: {item.source}
+                  </Text>
+                </View>
+              ))
+            )}
           </SectionCard>
 
           {/* Footer CTA - Inline, sayfanın en sonunda */}
@@ -366,3 +558,4 @@ export default function DailyLogScreen({ route, navigation }: any) {
     </View>
   );
 }
+

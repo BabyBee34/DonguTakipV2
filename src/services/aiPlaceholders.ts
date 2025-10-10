@@ -1,4 +1,5 @@
-// AI Placeholders - Henüz bağlı değil
+// AI Model - Development build'de aktif olacak! 🧠
+// TODO: Development build alındıktan sonra true yap
 export const AI_ENABLED = false;
 
 // Bugün için akıllı öneri (placeholder)

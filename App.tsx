@@ -15,11 +15,15 @@ import SetupLastPeriod from './src/screens/setup/SetupLastPeriod';
 import SetupPeriodLength from './src/screens/setup/SetupPeriodLength';
 import SetupCycleLength from './src/screens/setup/SetupCycleLength';
 import MainTabs from './src/screens/navigation/MainTabs';
+import ChatStack from './src/screens/navigation/ChatStack';
 import { setupNotificationListeners } from './src/services/notificationService';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import AuthGate from './src/components/AuthGate';
 import * as Notifications from 'expo-notifications';
 import { hasPIN, removePIN } from './src/services/pinService';
+import { deleteAllData } from './src/services/storage';
+import { logger, setupGlobalErrorHandler } from './src/services/logger';
+// import { migrateAsyncStorageToMMKV, isMigrationCompleted } from './src/services/migration'; // Build sırasında aktif
 
 // Notification handler - App bootstrap
 Notifications.setNotificationHandler({
@@ -27,6 +31,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: false,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -44,7 +50,7 @@ const Stack = createNativeStackNavigator();
 
 // 🔧 GELİŞTİRME MODU
 // Her açılışta onboarding görmek için true yapın
-const DEV_MODE_SHOW_ONBOARDING = true;
+const DEV_MODE_SHOW_ONBOARDING = false;
 
 function AppNavigator() {
   const onboardingCompleted = useSelector((state: RootState) => state.app.onboardingCompleted);
@@ -96,6 +102,15 @@ function AppNavigator() {
         }}
       />
       <Stack.Screen 
+        name="Chat" 
+        component={ChatStack}
+        options={{
+          animation: 'slide_from_right',
+          animationDuration: 300,
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
         name="MainTabs" 
         component={MainTabs}
         options={{
@@ -116,6 +131,40 @@ export default function App() {
     const { isDark } = useTheme();
     return <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />;
   };
+
+  // Global error handler & logger kurulumu
+  useEffect(() => {
+    setupGlobalErrorHandler();
+    logger.info('CycleMate uygulaması başlatıldı');
+    
+    // TODO: Build sırasında MMKV migration'ı aktif et
+    // Storage migration (AsyncStorage -> MMKV)
+    // const performMigration = async () => {
+    //   if (!isMigrationCompleted()) {
+    //     try {
+    //       logger.info('Storage migration başlatılıyor...');
+    //       const result = await migrateAsyncStorageToMMKV();
+    //       
+    //       if (result.success) {
+    //         logger.info('Migration başarılı!', {
+    //           migratedKeys: result.migratedKeys,
+    //           totalSize: result.totalSize,
+    //           duration: `${result.duration}ms`,
+    //         });
+    //       } else {
+    //         logger.warn('Migration kısmen başarılı', {
+    //           failedKeys: result.failedKeys,
+    //         });
+    //       }
+    //     } catch (error) {
+    //       logger.error('Migration hatası', error);
+    //     }
+    //   } else {
+    //     logger.debug('Migration zaten tamamlanmış');
+    //   }
+    // };
+    // performMigration();
+  }, []);
 
   // PIN kontrolü
   useEffect(() => {
@@ -144,10 +193,21 @@ export default function App() {
           text: 'Tüm Verileri Sil',
           style: 'destructive',
           onPress: async () => {
-            await removePIN();
-            // Store'u temizle (deleteAllData fonksiyonunu çağır)
-            setIsAuthenticated(true);
-            Alert.alert('Başarılı', 'PIN kaldırıldı ve tüm veriler silindi.');
+            try {
+              // PIN'i kaldır
+              await removePIN();
+              
+              // Redux persist storage'ı temizle
+              await persistor.purge();
+              
+              // AsyncStorage'daki tüm verileri sil
+              await deleteAllData();
+              
+              setIsAuthenticated(true);
+              Alert.alert('Başarılı', 'PIN kaldırıldı ve tüm veriler silindi.');
+            } catch (error) {
+              Alert.alert('Hata', 'Veriler silinirken bir sorun oluştu.');
+            }
           },
         },
       ]

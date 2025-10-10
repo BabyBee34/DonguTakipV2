@@ -6,14 +6,33 @@ const logsSlice = createSlice({
   initialState: [] as DailyLog[],
   reducers: {
     addLog(state, action: PayloadAction<DailyLog>) { 
-      state.push(action.payload); 
+      // Aynı tarih için duplicate kontrolü
+      const existingIndex = state.findIndex(l => l.date === action.payload.date);
+      if (existingIndex >= 0) {
+        // Varsa güncelle
+        state[existingIndex] = {
+          ...action.payload,
+          updatedAt: new Date().toISOString(),
+        };
+      } else {
+        // Yoksa ekle
+        state.push(action.payload);
+      }
     },
     updateLog(state, action: PayloadAction<DailyLog>) {
       const idx = state.findIndex(l => l.id === action.payload.id);
-      if (idx >= 0) state[idx] = action.payload;
+      if (idx >= 0) {
+        state[idx] = {
+          ...action.payload,
+          updatedAt: new Date().toISOString(),
+        };
+      }
     },
     deleteLog(state, action: PayloadAction<string>) {
       return state.filter(l => l.id !== action.payload);
+    },
+    setLogs(state, action: PayloadAction<DailyLog[]>) {
+      return action.payload;
     },
     clearLogs() {
       return [];
@@ -21,6 +40,6 @@ const logsSlice = createSlice({
   },
 });
 
-export const { addLog, updateLog, deleteLog, clearLogs } = logsSlice.actions;
+export const { addLog, updateLog, deleteLog, setLogs, clearLogs } = logsSlice.actions;
 export default logsSlice.reducer;
 

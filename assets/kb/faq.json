@@ -1,0 +1,36 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-10-09",
+  "faq": [
+    {
+      "id": "faq_cycle_length",
+      "question": "Adet dongusu kac gun surer?",
+      "answer": "Cok kisi icin 24-38 gun arasi normaldir; kendi rutinini takip et.",
+      "tags": [
+        "cycle",
+        "length"
+      ],
+      "source": "yapay.md"
+    },
+    {
+      "id": "faq_cramp_relief",
+      "question": "Kramplari nasil hafifletirim?",
+      "answer": "Sicak kompres, hafif yuruyus ve magnezyum iceren besinler rahatlatabilir.",
+      "tags": [
+        "cramp",
+        "relief"
+      ],
+      "source": "yapay.md"
+    },
+    {
+      "id": "faq_mood_swings",
+      "question": "Adet oncesi mod degisimi normal mi?",
+      "answer": "Luteal fazda hormon degisimleri sebebiyle duygu durum dalgalanmalari yaygindir.",
+      "tags": [
+        "mood",
+        "luteal"
+      ],
+      "source": "yapay.md"
+    }
+  ]
+}

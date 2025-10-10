@@ -26,6 +26,8 @@ import {
   applyAllFilters, 
 } from '../utils/reportsFilters';
 import ReportsFilterModal from '../components/ReportsFilterModal';
+import { withCache, invalidateCache } from '../services/cache';
+import { logger } from '../services/logger';
 
 const AI_ENABLED = false; // AI placeholder
 
@@ -64,6 +66,13 @@ export default function ReportsScreen({ navigation }: any) {
   // Tüm filtreleri uygula - memoized
   const { filteredLogs, filteredPeriods } = useMemo(() => {
     return applyAllFilters(logs, periods, timeFilter, menstruationOnly, selectedPeriods);
+  }, [logs, periods, timeFilter, menstruationOnly, selectedPeriods]);
+
+  // Cache keys - filtre ve veri değişikliklerine göre
+  const cacheKey = useMemo(() => {
+    const logsHash = logs.length > 0 ? logs[logs.length - 1].date : 'empty';
+    const periodsHash = periods.length > 0 ? periods[periods.length - 1].start : 'empty';
+    return `stats_${timeFilter}_${menstruationOnly}_${logsHash}_${periodsHash}_${selectedPeriods.length}`;
   }, [logs, periods, timeFilter, menstruationOnly, selectedPeriods]);
 
   const stats = useMemo(() => calculateCycleStats(filteredPeriods), [filteredPeriods]);

@@ -1,4 +1,4 @@
-﻿import React, { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import CalendarScreen from '../CalendarScreen';
 import DailyLogScreen from '../DailyLogScreen';
@@ -58,3 +58,4 @@ export default function MainTabs({ navigation }: any) {
     </Tab.Navigator>
   );
 }
+

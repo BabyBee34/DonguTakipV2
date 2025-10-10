@@ -105,3 +105,5 @@ export default function SymptomInfoSheet({ visible, onClose, symptom }: SymptomI
   );
 }
 
+
+

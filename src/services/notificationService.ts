@@ -181,10 +181,13 @@ async function scheduleDailyLogReminders(settings: NotificationSettings): Promis
 /**
  * Yaklaşan adet bildirimini planla
  */
-async function schedulePeriodReminder(nextPeriodDate: string): Promise<void> {
+async function schedulePeriodReminder(nextPeriodDate: string, settings?: any): Promise<void> {
   const periodDate = new Date(nextPeriodDate);
   const reminderDate = new Date(periodDate);
-  reminderDate.setDate(reminderDate.getDate() - 2); // 2 gün önce
+  
+  // Kullanıcı ayarlarını kontrol et
+  const daysBefore = settings?.upcomingPeriodDays || 2;
+  reminderDate.setDate(reminderDate.getDate() - daysBefore);
 
   // Geçmiş bir tarihse planlama
   if (reminderDate < new Date()) {
@@ -310,16 +313,16 @@ export function setupNotificationListeners(navigation?: any): () => void {
  */
 export function getCurrentNotificationSettings(state: RootState): NotificationSettings {
   // Redux state'den gerçek bildirim ayarlarını döndür
-  // notification slice mevcut değilse güvenli varsayılanlar döner
-  const slice: any = (state as any).notification;
-  if (slice && slice.settings) {
-    return slice.settings as NotificationSettings;
+  if (state.notification && state.notification.settings) {
+    return state.notification.settings;
   }
   return {
     enabled: true,
     frequency: 'balanced',
-    reminderTime: '09:00',
+    reminderTime: { hour: 9, minute: 0 },
+    upcomingPeriodDays: 2,
     periodReminder: true,
+    dailyLogReminder: true,
   };
 }
 

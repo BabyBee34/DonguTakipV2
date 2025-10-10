@@ -30,12 +30,19 @@ export function filterByTimeRange(logs: DailyLog[], range: TimeRange): DailyLog[
 }
 
 // Sadece adet günlerini filtrele
-export function filterByMenstruationOnly(logs: DailyLog[], isOn: boolean): DailyLog[] {
+export function filterByMenstruationOnly(logs: DailyLog[], isOn: boolean, periods?: PeriodSpan[]): DailyLog[] {
   if (!isOn) return logs;
+  if (!periods || periods.length === 0) return logs;
   
   return logs.filter(log => {
-    // Adet günü kontrolü - flow değerine göre
-    return log.flow === 'heavy' || log.flow === 'medium' || log.flow === 'light';
+    // Adet günü kontrolü - periods array'inden tarih kontrolü
+    return periods.some(period => {
+      const logDate = log.date;
+      const periodStart = period.start;
+      const periodEnd = period.end || periodStart; // Aktif period için sadece start
+      
+      return logDate >= periodStart && logDate <= periodEnd;
+    });
   });
 }
 

@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { View, Text, Pressable, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Drop, Footprints, Armchair, Shower } from 'phosphor-react-native';
+import { HabitKey } from '../types';
 
 const HabitButton = ({ habit, isSelected, onPress }: any) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -66,13 +67,11 @@ const HabitButton = ({ habit, isSelected, onPress }: any) => {
 };
 
 const HABITS = [
-  { key: 'water', label: 'Su içtim', Icon: Drop },
-  { key: 'walk', label: 'Kısa yürüyüş', Icon: Footprints },
-  { key: 'rest', label: 'Dinlenme molası', Icon: Armchair },
-  { key: 'shower', label: 'Ilık duş', Icon: Shower },
+  { key: 'water' as HabitKey, label: 'Su içtim', Icon: Drop },
+  { key: 'walk' as HabitKey, label: 'Kısa yürüyüş', Icon: Footprints },
+  { key: 'rest' as HabitKey, label: 'Dinlenme molası', Icon: Armchair },
+  { key: 'shower' as HabitKey, label: 'Ilık duş', Icon: Shower },
 ];
-
-export type HabitKey = typeof HABITS[number]['key'];
 
 interface QuickHabitsProps {
   selected: HabitKey[];

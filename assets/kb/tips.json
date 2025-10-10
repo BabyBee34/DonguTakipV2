@@ -1,0 +1,68 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-10-09",
+  "tips": [
+    {
+      "id": "menstrual_heat_relief",
+      "title": "Sicak Kompres ve Derin Nefes",
+      "body": "Karin bolgesine sicak torba koyup 4-7-8 nefes teknigiyle gevse.",
+      "phase": "menstrual",
+      "tags": [
+        "cramp",
+        "menstrual",
+        "selfcare"
+      ],
+      "source": "yapay.md",
+      "mood": null
+    },
+    {
+      "id": "follicular_energy",
+      "title": "Enerji Patlamasini Yakala",
+      "body": "Folikuler fazda enerji yukselir. Hedeflerini planla ve su icmeyi unutma.",
+      "phase": "follicular",
+      "tags": [
+        "energy",
+        "planning"
+      ],
+      "source": "yapay.md",
+      "mood": "happy"
+    },
+    {
+      "id": "ovulation_social",
+      "title": "Sosyallesme Zamani",
+      "body": "Ovulasyon doneminde kendini disari at, arkadas bulusmasi planla.",
+      "phase": "ovulation",
+      "tags": [
+        "social",
+        "confidence"
+      ],
+      "source": "yapay.md",
+      "mood": "ecstatic"
+    },
+    {
+      "id": "luteal_calming",
+      "title": "Nazik Mod",
+      "body": "Luteal fazda isi kucult, magnezyumlu atistirmaliklar tuket, uyku rutinine sadik kal.",
+      "phase": "luteal",
+      "tags": [
+        "luteal",
+        "selfcare",
+        "calm"
+      ],
+      "source": "yapay.md",
+      "mood": "tired"
+    },
+    {
+      "id": "general_water_break",
+      "title": "Su Molasi",
+      "body": "Bir bardak su doldur ve kisa bir esneme yap.",
+      "phase": "general",
+      "tags": [
+        "habit",
+        "hydration"
+      ],
+      "source": "yapay.md",
+      "mood": null
+    }
+  ]
+}

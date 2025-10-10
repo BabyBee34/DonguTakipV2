@@ -1,6 +1,7 @@
 ﻿import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import { persistReducer, persistStore } from 'redux-persist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+// import { mmkvStorageAdapter } from '../services/mmkvStorage'; // Build sırasında aktif edilecek
 import prefsReducer from './slices/prefsSlice';
 import logsReducer from './slices/logsSlice';
 import periodsReducer from './slices/periodsSlice';
@@ -19,7 +20,7 @@ const rootReducer = combineReducers({
 
 const persistConfig = {
   key: 'root',
-  storage: AsyncStorage,
+  storage: AsyncStorage, // TODO: Build sırasında mmkvStorageAdapter'a çevir (30x daha hızlı!)
   whitelist: ['prefs', 'logs', 'periods', 'notification', 'settings', 'app'],
 };
 

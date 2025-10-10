@@ -11,13 +11,32 @@ export interface BackupSettings {
   };
 }
 
+export type BackupMood =
+  | 'ecstatic'
+  | 'happy'
+  | 'calm'
+  | 'neutral'
+  | 'tired'
+  | 'sad'
+  | 'angry'
+  | 'anxious'
+  | 'irritable';
+
+export interface BackupSymptom {
+  id: string;
+  severity: number;
+}
+
 export interface BackupJournalEntry {
   id: string;
   date: string;
-  mood?: 'harika' | 'iyi' | 'sakin' | 'normal' | 'yorgun' | 'agrili';
-  symptoms: string[];
-  notes?: string;
+  mood?: BackupMood;
+  symptoms: BackupSymptom[];
+  note?: string;
+  habits?: string[];
   flow?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface BackupCycleRecord {
@@ -45,4 +64,6 @@ export function validateBackupSchema(data: any): data is BackupData {
   if (!Array.isArray(data.cycles)) return false;
   return true;
 }
+
+
 

@@ -10,6 +10,8 @@ import {
   isBiometricAvailable,
   authenticateWithBiometric,
   removePIN,
+  isLocked,
+  getLockoutTime,
 } from '../services/pinService';
 
 interface AuthGateProps {
@@ -22,11 +24,33 @@ export default function AuthGate({ onSuccess, onForgotPIN }: AuthGateProps) {
   const [attempts, setAttempts] = useState(0);
   const [maxReached, setMaxReached] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [lockoutRemaining, setLockoutRemaining] = useState<number | null>(null);
 
   useEffect(() => {
     checkBiometric();
     checkAttempts();
+    checkLockoutStatus();
   }, []);
+
+  // Lockout countdown timer
+  useEffect(() => {
+    if (!locked || !lockoutRemaining) return;
+
+    const interval = setInterval(async () => {
+      const remaining = await getLockoutTime();
+      if (remaining && remaining > 0) {
+        setLockoutRemaining(remaining);
+      } else {
+        // Lockout süresi doldu
+        setLocked(false);
+        setLockoutRemaining(null);
+        await checkAttempts(); // Deneme sayısını güncelle
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [locked, lockoutRemaining]);
 
   const checkBiometric = async () => {
     const available = await isBiometricAvailable();
@@ -49,7 +73,23 @@ export default function AuthGate({ onSuccess, onForgotPIN }: AuthGateProps) {
     setMaxReached(maxed);
   };
 
+  const checkLockoutStatus = async () => {
+    const isCurrentlyLocked = await isLocked();
+    setLocked(isCurrentlyLocked);
+    
+    if (isCurrentlyLocked) {
+      const remaining = await getLockoutTime();
+      setLockoutRemaining(remaining);
+    }
+  };
+
   const handlePinChange = (value: string) => {
+    // Lockout durumunda giriş yapılamaz
+    if (locked) {
+      setPin('');
+      return;
+    }
+    
     if (value.length <= 4) {
       setPin(value);
       if (value.length === 4) {
@@ -72,10 +112,13 @@ export default function AuthGate({ onSuccess, onForgotPIN }: AuthGateProps) {
       const newAttempts = await getPINAttempts();
       setAttempts(newAttempts);
       
+      // Lockout kontrolü
+      await checkLockoutStatus();
+      
       const maxed = await isMaxAttemptsReached();
       setMaxReached(maxed);
       
-      if (maxed) {
+      if (maxed && !locked) {
         Alert.alert(
           'Maksimum Deneme Aşıldı',
           'PIN\'inizi unuttunuz mu? PIN\'i kaldırmak tüm verilerinizi silecektir.',
@@ -86,6 +129,18 @@ export default function AuthGate({ onSuccess, onForgotPIN }: AuthGateProps) {
         );
       }
     }
+  };
+
+  // Kalan süreyi formatla
+  const formatLockoutTime = (ms: number): string => {
+    const totalSeconds = Math.ceil(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    
+    if (minutes > 0) {
+      return `${minutes} dakika ${seconds} saniye`;
+    }
+    return `${seconds} saniye`;
   };
 
   const handleBiometricPress = async () => {
@@ -134,21 +189,35 @@ export default function AuthGate({ onSuccess, onForgotPIN }: AuthGateProps) {
             maxLength={4}
             autoFocus
             secureTextEntry
-            editable={!maxReached}
+            editable={!maxReached && !locked}
           />
 
-          {attempts > 0 && !maxReached && (
+          {/* Lockout Durumu */}
+          {locked && lockoutRemaining && (
+            <View style={styles.lockoutContainer}>
+              <Text style={styles.lockoutTitle}>⏳ Geçici Kilitleme</Text>
+              <Text style={styles.lockoutText}>
+                Çok fazla yanlış deneme yaptınız.{'\n'}
+                Lütfen {formatLockoutTime(lockoutRemaining)} bekleyin.
+              </Text>
+            </View>
+          )}
+
+          {/* Deneme Sayısı */}
+          {!locked && attempts > 0 && !maxReached && (
             <Text style={styles.attemptsText}>
               Kalan deneme: {remainingAttempts}
             </Text>
           )}
 
-          {maxReached && (
+          {/* Maksimum Deneme */}
+          {!locked && maxReached && (
             <Text style={styles.errorText}>
               Maksimum deneme sayısına ulaştınız
             </Text>
           )}
 
+          {/* Biyometrik (Lockout sırasında da kullanılabilir) */}
           {biometricAvailable && (
             <TouchableOpacity
               onPress={handleBiometricPress}
@@ -160,13 +229,16 @@ export default function AuthGate({ onSuccess, onForgotPIN }: AuthGateProps) {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            onPress={onForgotPIN}
-            style={styles.forgotButton}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.forgotText}>PIN'imi Unuttum</Text>
-          </TouchableOpacity>
+          {/* Forgot PIN (Lockout sırasında disable) */}
+          {!locked && (
+            <TouchableOpacity
+              onPress={onForgotPIN}
+              style={styles.forgotButton}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.forgotText}>PIN'imi Unuttum</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </LinearGradient>
     </View>
@@ -264,6 +336,28 @@ const styles = StyleSheet.create({
     color: '#FFF',
     opacity: 0.8,
     textDecorationLine: 'underline',
+  },
+  lockoutContainer: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    borderRadius: 16,
+    padding: 20,
+    marginVertical: 16,
+    alignItems: 'center',
+  },
+  lockoutTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFF',
+    marginBottom: 8,
+  },
+  lockoutText: {
+    fontSize: 15,
+    color: '#FFF',
+    opacity: 0.95,
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });
 

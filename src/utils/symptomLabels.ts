@@ -714,3 +714,5 @@ export function mapMoodLabelsTR(key: string): string {
   return moodLabelsTR[key] || key;
 }
 
+
+
