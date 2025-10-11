@@ -147,3 +147,4 @@ python ml/train_model.py
 **Geliştirme tamamlandı!** 🚀
 
 
+

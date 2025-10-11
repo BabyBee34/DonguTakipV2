@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback, useEffect } from 'react';
+﻿import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Alert, Linking, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,6 +11,8 @@ import { setSettings } from '../store/slices/settingsSlice';
 import { clearLogs, setLogs } from '../store/slices/logsSlice';
 import { clearPeriods, setPeriods } from '../store/slices/periodsSlice';
 import { useTheme } from '../theme/ThemeProvider';
+import ThemeEditor from '../components/settings/ThemeEditor';
+import Modal from '../components/Modal';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 // ✓ TEK DOĞRU İMPORT
@@ -61,6 +63,12 @@ export default function SettingsScreen() {
   const dispatch = useDispatch();
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
+  
+  // Theme editor modal
+  const [themeEditorVisible, setThemeEditorVisible] = useState(false);
+  
+  // Theme sheet ref
+  const themeSheetRef = useRef(null);
 
   const prefs = useSelector((state: RootState) => state.prefs);
   const notificationSettings = useSelector((state: RootState) => state.notification.settings);
@@ -625,23 +633,15 @@ export default function SettingsScreen() {
           shadowRadius: 8,
           elevation: 2,
         }}>
-          <View style={{ marginBottom: 16 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-              {getThemeIcon()}
-              <Text style={{ fontSize: 15, fontWeight: '500', color: '#1F2937', marginLeft: 12 }}>
-                Tema
-              </Text>
-            </View>
-            <SegmentedControl
-              options={[
-                { value: 'system', label: 'Sistem' },
-                { value: 'light', label: 'Açık' },
-                { value: 'dark', label: 'Koyu' },
-              ]}
-              value={settings.theme || 'system'}
-              onChange={handleThemeChange}
-            />
-          </View>
+          <SettingRow
+            icon={<DeviceMobile size={20} color="#E94FA1" />}
+            title="Gelişmiş Tema Ayarları"
+            value="→"
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              navigation.navigate('ThemeSettings' as never);
+            }}
+          />
           
           <SettingRow
             icon={<Globe size={20} color="#E94FA1" />}
@@ -1065,6 +1065,16 @@ export default function SettingsScreen() {
         onConfirm={handlePINConfirm}
         onCancel={() => setShowPINModal(false)}
       />
+
+      {/* Theme Editor Modal */}
+      <Modal
+        visible={themeEditorVisible}
+        onClose={() => setThemeEditorVisible(false)}
+        title="🎨 Tema Ayarları"
+      >
+        <ThemeEditor />
+      </Modal>
+
 
       {/* Toast */}
       {toast && (

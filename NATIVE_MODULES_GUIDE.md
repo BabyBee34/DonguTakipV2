@@ -167,3 +167,4 @@ npx expo run:android
 **Şimdilik AsyncStorage + AI disabled ile test edebilirsin!** ✅
 
 
+

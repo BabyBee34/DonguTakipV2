@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useThemeColors } from '../theme';
+import { useTabBarColors } from '../theme';
 // Phosphor ikonlar (Bold stilde hoş görünüyor)
 import { CalendarBlank, PencilSimple, ChartBar, GearSix } from 'phosphor-react-native';
 
@@ -20,7 +20,7 @@ interface PastelTabBarProps {
 }
 
 export default function PastelTabBar({ state, descriptors, navigation }: PastelTabBarProps) {
-  const c = useThemeColors();
+  const c = useTabBarColors();  // Use dynamic tab bar colors
   const insets = useSafeAreaInsets();
   const bottom = Math.max(insets.bottom, 10);
 
@@ -136,6 +136,7 @@ export default function PastelTabBar({ state, descriptors, navigation }: PastelT
     </View>
   );
 }
+
 
 
 

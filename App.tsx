@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Text, BackHandler, Alert, StatusBar, Platform } from 'react-native';
 import { useFonts, Nunito_400Regular, Nunito_600SemiBold, Nunito_700Bold } from '@expo-google-fonts/nunito';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Provider, useSelector } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
@@ -16,6 +16,7 @@ import SetupPeriodLength from './src/screens/setup/SetupPeriodLength';
 import SetupCycleLength from './src/screens/setup/SetupCycleLength';
 import MainTabs from './src/screens/navigation/MainTabs';
 import ChatStack from './src/screens/navigation/ChatStack';
+import ThemeSettingsScreen from './src/screens/ThemeSettingsScreen';
 import { setupNotificationListeners } from './src/services/notificationService';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import AuthGate from './src/components/AuthGate';
@@ -47,6 +48,44 @@ if (Platform.OS === 'android') {
 }
 
 const Stack = createNativeStackNavigator();
+
+// NavigationContainer with theme
+function ThemedNavigationContainer() {
+  const { effectiveMode, resolveColor } = useTheme();
+  
+  // React Navigation theme'ini extend et
+  const navigationTheme = effectiveMode === 'dark' 
+    ? {
+        ...DarkTheme,
+        colors: {
+          ...DarkTheme.colors,
+          primary: resolveColor('accent'),
+          background: resolveColor('background'),
+          card: resolveColor('surface'),
+          text: resolveColor('text'),
+          border: resolveColor('border'),
+          notification: resolveColor('accent'),
+        },
+      }
+    : {
+        ...DefaultTheme,
+        colors: {
+          ...DefaultTheme.colors,
+          primary: resolveColor('accent'),
+          background: resolveColor('background'),
+          card: resolveColor('surface'),
+          text: resolveColor('text'),
+          border: resolveColor('border'),
+          notification: resolveColor('accent'),
+        },
+      };
+  
+  return (
+    <NavigationContainer theme={navigationTheme}>
+      <AppNavigator />
+    </NavigationContainer>
+  );
+}
 
 // 🔧 GELİŞTİRME MODU
 // Her açılışta onboarding görmek için true yapın
@@ -118,6 +157,15 @@ function AppNavigator() {
           animationDuration: 400,
         }}
       />
+      <Stack.Screen 
+        name="ThemeSettings" 
+        component={ThemeSettingsScreen}
+        options={{
+          animation: 'slide_from_right',
+          animationDuration: 300,
+          headerShown: false,
+        }}
+      />
     </Stack.Navigator>
   );
 }
@@ -128,8 +176,8 @@ export default function App() {
   const [checkingPIN, setCheckingPIN] = useState(true);
   
   const ThemedStatusBar = () => {
-    const { isDark } = useTheme();
-    return <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />;
+    const { effectiveMode } = useTheme();
+    return <StatusBar barStyle={effectiveMode === 'dark' ? 'light-content' : 'dark-content'} />;
   };
 
   // Global error handler & logger kurulumu
@@ -249,9 +297,7 @@ export default function App() {
                   onForgotPIN={handleForgotPIN}
                 />
               ) : (
-                <NavigationContainer>
-                  <AppNavigator />
-                </NavigationContainer>
+                <ThemedNavigationContainer />
               )}
             </ErrorBoundary>
           </ThemeProvider>

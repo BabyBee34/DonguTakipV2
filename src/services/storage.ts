@@ -12,6 +12,49 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const storageAdapter = AsyncStorage;
 
 /**
+ * Export storage adapter for use in other services
+ */
+export const storage = {
+  getItem: async (key: string): Promise<string | null> => {
+    try {
+      return await storageAdapter.getItem(key);
+    } catch (error) {
+      console.error('[Storage] getItem error:', error);
+      return null;
+    }
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    try {
+      await storageAdapter.setItem(key, value);
+    } catch (error) {
+      console.error('[Storage] setItem error:', error);
+    }
+  },
+  removeItem: async (key: string): Promise<void> => {
+    try {
+      await storageAdapter.removeItem(key);
+    } catch (error) {
+      console.error('[Storage] removeItem error:', error);
+    }
+  },
+  clear: async (): Promise<void> => {
+    try {
+      await storageAdapter.clear();
+    } catch (error) {
+      console.error('[Storage] clear error:', error);
+    }
+  },
+  getAllKeys: async (): Promise<string[]> => {
+    try {
+      return await storageAdapter.getAllKeys();
+    } catch (error) {
+      console.error('[Storage] getAllKeys error:', error);
+      return [];
+    }
+  }
+};
+
+/**
  * Delete all app data from AsyncStorage
  */
 export async function deleteAllData(): Promise<void> {

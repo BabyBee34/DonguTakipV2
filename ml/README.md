@@ -159,3 +159,4 @@ pip install --upgrade skl2onnx onnx
 **Güncelleme:** 09 Ekim 2025
 
 
+

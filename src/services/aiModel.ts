@@ -6,10 +6,17 @@ import { DailyLog, PeriodSpan, CyclePrefs, Symptom, Mood } from '../types';
 let ortSessionPromise: Promise<any> | null = null;
 
 // Model paths - yeni multi-task model için
-const TIP_MODEL_PATH = '../../assets/models/model.onnx';
-const CYCLE_MODEL_PATH = '../../assets/models/cycle_model.onnx';
-const CACHE_TIP_DEST = `${FileSystem.cacheDirectory || ''}model.onnx`;
-const CACHE_CYCLE_DEST = `${FileSystem.cacheDirectory || ''}cycle_model.onnx`;
+const PERIOD_MODEL_PATH = '../../assets/models/period_prediction.onnx';
+const OVULATION_MODEL_PATH = '../../assets/models/ovulation_prediction.onnx';
+const PHASE_MODEL_PATH = '../../assets/models/phase_classification.onnx';
+const MOOD_MODEL_PATH = '../../assets/models/mood_classification.onnx';
+const SCALER_MODEL_PATH = '../../assets/models/scaler.onnx';
+
+const CACHE_PERIOD_DEST = `${FileSystem.cacheDirectory || ''}period_prediction.onnx`;
+const CACHE_OVULATION_DEST = `${FileSystem.cacheDirectory || ''}ovulation_prediction.onnx`;
+const CACHE_PHASE_DEST = `${FileSystem.cacheDirectory || ''}phase_classification.onnx`;
+const CACHE_MOOD_DEST = `${FileSystem.cacheDirectory || ''}mood_classification.onnx`;
+const CACHE_SCALER_DEST = `${FileSystem.cacheDirectory || ''}scaler.onnx`;
 const MODEL_WEIGHT = 0.4;
 
 // AI Output interfaces
@@ -49,7 +56,8 @@ async function loadOrt(): Promise<typeof import('onnxruntime-react-native') | nu
   }
 }
 
-async function loadSession(): Promise<any | null> {
+// Yeni AI modellerini yükle
+async function loadAISessions(): Promise<any | null> {
   if (ortSessionPromise) return ortSessionPromise;
 
   ortSessionPromise = (async () => {
@@ -57,19 +65,73 @@ async function loadSession(): Promise<any | null> {
       const ort = await loadOrt();
       if (!ort) return null;
 
-      const asset = Asset.fromModule(require('../../assets/models/model.onnx'));
-      await asset.downloadAsync();
-      if (!asset.localUri) {
-        logger.warn('[AI Model] Asset local uri unavailable');
-        return null;
+      // Tüm modelleri yükle
+      const sessions: any = {};
+      
+      // Period prediction model
+      try {
+        const periodAsset = Asset.fromModule(require(PERIOD_MODEL_PATH));
+        await periodAsset.downloadAsync();
+        if (periodAsset.localUri) {
+          await FileSystem.copyAsync({ from: periodAsset.localUri, to: CACHE_PERIOD_DEST });
+          sessions.period = await ort.InferenceSession.create(CACHE_PERIOD_DEST, { executionProviders: ['cpu'] });
+        }
+      } catch (error) {
+        logger.warn('[AI Model] Period model load failed', error);
       }
 
-      await FileSystem.copyAsync({ from: asset.localUri, to: CACHE_TIP_DEST });
-      const session = await ort.InferenceSession.create(CACHE_TIP_DEST, { executionProviders: ['cpu'] });
-      logger.info('[AI Model] Model loaded successfully');
-      return { ort, session };
+      // Ovulation prediction model
+      try {
+        const ovulationAsset = Asset.fromModule(require(OVULATION_MODEL_PATH));
+        await ovulationAsset.downloadAsync();
+        if (ovulationAsset.localUri) {
+          await FileSystem.copyAsync({ from: ovulationAsset.localUri, to: CACHE_OVULATION_DEST });
+          sessions.ovulation = await ort.InferenceSession.create(CACHE_OVULATION_DEST, { executionProviders: ['cpu'] });
+        }
+      } catch (error) {
+        logger.warn('[AI Model] Ovulation model load failed', error);
+      }
+
+      // Phase classification model
+      try {
+        const phaseAsset = Asset.fromModule(require(PHASE_MODEL_PATH));
+        await phaseAsset.downloadAsync();
+        if (phaseAsset.localUri) {
+          await FileSystem.copyAsync({ from: phaseAsset.localUri, to: CACHE_PHASE_DEST });
+          sessions.phase = await ort.InferenceSession.create(CACHE_PHASE_DEST, { executionProviders: ['cpu'] });
+        }
+      } catch (error) {
+        logger.warn('[AI Model] Phase model load failed', error);
+      }
+
+      // Mood classification model
+      try {
+        const moodAsset = Asset.fromModule(require(MOOD_MODEL_PATH));
+        await moodAsset.downloadAsync();
+        if (moodAsset.localUri) {
+          await FileSystem.copyAsync({ from: moodAsset.localUri, to: CACHE_MOOD_DEST });
+          sessions.mood = await ort.InferenceSession.create(CACHE_MOOD_DEST, { executionProviders: ['cpu'] });
+        }
+      } catch (error) {
+        logger.warn('[AI Model] Mood model load failed', error);
+      }
+
+      // Scaler model
+      try {
+        const scalerAsset = Asset.fromModule(require(SCALER_MODEL_PATH));
+        await scalerAsset.downloadAsync();
+        if (scalerAsset.localUri) {
+          await FileSystem.copyAsync({ from: scalerAsset.localUri, to: CACHE_SCALER_DEST });
+          sessions.scaler = await ort.InferenceSession.create(CACHE_SCALER_DEST, { executionProviders: ['cpu'] });
+        }
+      } catch (error) {
+        logger.warn('[AI Model] Scaler model load failed', error);
+      }
+
+      logger.info('[AI Model] AI models loaded successfully', { loadedModels: Object.keys(sessions) });
+      return { ort, sessions };
     } catch (error) {
-      logger.warn('[AI Model] Session init failed', error);
+      logger.warn('[AI Model] AI sessions init failed', error);
       return null;
     }
   })();
@@ -80,12 +142,14 @@ async function loadSession(): Promise<any | null> {
 // Legacy tip model function (geriye dönük uyumluluk)
 export async function getTipModelScores(features: number[]): Promise<number[] | null> {
   try {
-    const result = await loadSession();
-    if (!result) return null;
+    // Fallback olarak mood model kullan
+    const result = await loadAISessions();
+    if (!result || !result.sessions.mood) return null;
 
-    const { ort, session } = result;
+    const { ort, sessions } = result;
     if (!Array.isArray(features) || features.length === 0) return null;
 
+    const session = sessions.mood;
     const inputName = session.inputNames?.[0] || 'input';
     const outputName = session.outputNames?.[0] || 'output';
     const tensor = new ort.Tensor('float32', Float32Array.from(features), [1, features.length]);
@@ -116,13 +180,19 @@ export async function getAIInsights(
     // 1. Feature extraction
     const features = extractComprehensiveFeatures(logs, periods, prefs, today);
     
-    // 2. Model inference (henüz cycle model yok, fallback kullan)
-    const tipScores = await getTipModelScores(features.slice(0, 39)); // İlk 39 feature
+    // 2. AI model inference
+    const result = await loadAISessions();
+    if (!result || !result.sessions) {
+      logger.warn('[AI Model] AI sessions not available, using fallback');
+      return generateFallbackAIOutput(logs, periods, prefs, today);
+    }
+
+    const { ort, sessions } = result;
     
-    // 3. Fallback predictions (gerçek model gelene kadar)
-    const predictions = generateFallbackPredictions(logs, periods, prefs, today);
-    const symptoms = generateFallbackSymptomPredictions(logs, periods, prefs, today);
-    const recommendations = generateFallbackRecommendations(logs, periods, prefs, today, tipScores);
+    // 3. Model inference
+    const predictions = await runCyclePredictions(features, sessions, ort, logs, periods, prefs, today);
+    const symptoms = await runSymptomPredictions(features, sessions, ort, logs, periods, prefs, today);
+    const recommendations = await generateAIRecommendations(features, sessions, ort, logs, periods, prefs, today);
     
     const confidence = calculateOverallConfidence(logs, periods);
     
@@ -135,7 +205,7 @@ export async function getAIInsights(
     };
   } catch (error) {
     logger.warn('[AI Model] Comprehensive inference failed', error);
-    return null;
+    return generateFallbackAIOutput(logs, periods, prefs, today);
   }
 }
 
@@ -447,6 +517,189 @@ function calculateOverallConfidence(logs: DailyLog[], periods: PeriodSpan[]): nu
   const dataPoints = logs.length + periods.length;
   const confidence = Math.min(0.95, 0.3 + (dataPoints * 0.02));
   return Math.max(0.1, confidence);
+}
+
+// Yeni AI inference fonksiyonları
+async function runCyclePredictions(
+  features: number[],
+  sessions: any,
+  ort: any,
+  logs: DailyLog[],
+  periods: PeriodSpan[],
+  prefs: CyclePrefs,
+  today: string
+): Promise<CyclePrediction> {
+  try {
+    // Period prediction
+    let nextPeriod = generateFallbackPredictions(logs, periods, prefs, today).nextPeriod;
+    if (sessions.period) {
+      const periodResult = await runModelInference(features, sessions.period, ort);
+      if (periodResult) {
+        const daysToPeriod = Math.round(periodResult[0]);
+        const periodDate = new Date(today);
+        periodDate.setDate(periodDate.getDate() + daysToPeriod);
+        nextPeriod = {
+          date: periodDate.toISOString().split('T')[0],
+          confidence: Math.min(0.9, Math.max(0.3, 1 - Math.abs(daysToPeriod) / 30))
+        };
+      }
+    }
+
+    // Ovulation prediction
+    let ovulation = generateFallbackPredictions(logs, periods, prefs, today).ovulation;
+    if (sessions.ovulation) {
+      const ovulationResult = await runModelInference(features, sessions.ovulation, ort);
+      if (ovulationResult) {
+        const daysToOvulation = Math.round(ovulationResult[0]);
+        const ovulationDate = new Date(today);
+        ovulationDate.setDate(ovulationDate.getDate() + daysToOvulation);
+        ovulation = {
+          date: ovulationDate.toISOString().split('T')[0],
+          confidence: Math.min(0.9, Math.max(0.3, 1 - Math.abs(daysToOvulation) / 15))
+        };
+      }
+    }
+
+    // Phase classification
+    let phase = generateFallbackPredictions(logs, periods, prefs, today).phase;
+    if (sessions.phase) {
+      const phaseResult = await runModelInference(features, sessions.phase, ort);
+      if (phaseResult) {
+        const phaseIndex = Math.round(phaseResult[0]);
+        const phases = ['menstrual', 'follicular', 'ovulation', 'luteal'];
+        const phaseName = phases[phaseIndex] || 'follicular';
+        phase = {
+          name: phaseName,
+          confidence: 0.8,
+          dayInCycle: phaseIndex * 7 + 1
+        };
+      }
+    }
+
+    // Fertile window (ovulation ± 5 gün)
+    const ovulationDate = new Date(ovulation.date);
+    const fertileStart = new Date(ovulationDate);
+    fertileStart.setDate(fertileStart.getDate() - 5);
+    const fertileEnd = new Date(ovulationDate);
+    fertileEnd.setDate(fertileEnd.getDate() + 5);
+
+    return {
+      nextPeriod,
+      ovulation,
+      fertileWindow: {
+        start: fertileStart.toISOString().split('T')[0],
+        end: fertileEnd.toISOString().split('T')[0],
+        confidence: ovulation.confidence * 0.8
+      },
+      phase
+    };
+  } catch (error) {
+    logger.warn('[AI Model] Cycle prediction failed', error);
+    return generateFallbackPredictions(logs, periods, prefs, today);
+  }
+}
+
+async function runSymptomPredictions(
+  features: number[],
+  sessions: any,
+  ort: any,
+  logs: DailyLog[],
+  periods: PeriodSpan[],
+  prefs: CyclePrefs,
+  today: string
+): Promise<SymptomPrediction> {
+  try {
+    // Mood prediction
+    let moodPrediction = generateFallbackSymptomPredictions(logs, periods, prefs, today).moodPrediction;
+    if (sessions.mood) {
+      const moodResult = await runModelInference(features, sessions.mood, ort);
+      if (moodResult) {
+        const moodIndex = Math.round(moodResult[0]);
+        const moods: Mood[] = ['ecstatic', 'happy', 'calm', 'neutral', 'tired', 'sad', 'anxious', 'irritable', 'angry'];
+        const predictedMood = moods[moodIndex] || 'neutral';
+        moodPrediction = {
+          mood: predictedMood,
+          probability: 0.7
+        };
+      }
+    }
+
+    // Symptom prediction (basit fallback)
+    const predictedSymptoms = generateFallbackSymptomPredictions(logs, periods, prefs, today).predictedSymptoms;
+    
+    // Energy level (basit hesaplama)
+    const energyLevel = generateFallbackSymptomPredictions(logs, periods, prefs, today).energyLevel;
+
+    return {
+      predictedSymptoms,
+      moodPrediction,
+      energyLevel
+    };
+  } catch (error) {
+    logger.warn('[AI Model] Symptom prediction failed', error);
+    return generateFallbackSymptomPredictions(logs, periods, prefs, today);
+  }
+}
+
+async function generateAIRecommendations(
+  features: number[],
+  sessions: any,
+  ort: any,
+  logs: DailyLog[],
+  periods: PeriodSpan[],
+  prefs: CyclePrefs,
+  today: string
+): Promise<AIRecommendation> {
+  try {
+    // AI-based tip scoring
+    const tipScores = await getTipModelScores(features.slice(0, 39));
+    
+    return generateFallbackRecommendations(logs, periods, prefs, today, tipScores);
+  } catch (error) {
+    logger.warn('[AI Model] Recommendation generation failed', error);
+    return generateFallbackRecommendations(logs, periods, prefs, today, null);
+  }
+}
+
+async function runModelInference(features: number[], session: any, ort: any): Promise<number[] | null> {
+  try {
+    if (!session || !ort) return null;
+
+    const inputName = session.inputNames?.[0] || 'input';
+    const outputName = session.outputNames?.[0] || 'output';
+    const tensor = new ort.Tensor('float32', Float32Array.from(features), [1, features.length]);
+    const feeds: Record<string, typeof tensor> = {};
+    feeds[inputName] = tensor;
+
+    const outputs = await session.run(feeds);
+    const output = outputs[outputName];
+    if (!output || !output.data) return null;
+
+    return Array.from(output.data as Float32Array);
+  } catch (error) {
+    logger.warn('[AI Model] Model inference failed', error);
+    return null;
+  }
+}
+
+function generateFallbackAIOutput(
+  logs: DailyLog[],
+  periods: PeriodSpan[],
+  prefs: CyclePrefs,
+  today: string
+): AIOutput {
+  const predictions = generateFallbackPredictions(logs, periods, prefs, today);
+  const symptoms = generateFallbackSymptomPredictions(logs, periods, prefs, today);
+  const recommendations = generateFallbackRecommendations(logs, periods, prefs, today, null);
+  const confidence = calculateOverallConfidence(logs, periods);
+
+  return {
+    predictions,
+    symptoms,
+    recommendations,
+    confidence,
+    lastUpdated: today
+  };
 }
 
 export { MODEL_WEIGHT };

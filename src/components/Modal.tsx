@@ -177,6 +177,7 @@ const styles = StyleSheet.create({
   },
   container: {
     maxHeight: '80%',
+    minHeight: '50%',
   },
   swipeIndicatorContainer: {
     alignItems: 'center',
