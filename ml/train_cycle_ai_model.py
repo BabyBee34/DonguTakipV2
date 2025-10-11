@@ -442,17 +442,26 @@ def train_models(X: np.ndarray, y: Dict[str, np.ndarray], user_ids: np.ndarray, 
     models = {}
     results = {}
     
-    # 1. Period Prediction (Regression) - Using HistogramGradientBoosting
+    # 1. Period Prediction (Regression) - Using GradientBoosting
     print("\n=== Training Period Prediction (GradientBoosting) ===")
-    from sklearn.ensemble import HistogramGradientBoostingRegressor
-    
-    period_model = HistogramGradientBoostingRegressor(
-        max_iter=100,
-        max_depth=8,
-        learning_rate=0.1,
-        l2_regularization=0.1,
-        random_state=42
-    )
+    try:
+        from sklearn.ensemble import HistogramGradientBoostingRegressor
+        period_model = HistogramGradientBoostingRegressor(
+            max_iter=100,
+            max_depth=8,
+            learning_rate=0.1,
+            l2_regularization=0.1,
+            random_state=42
+        )
+    except ImportError:
+        # Fallback to GradientBoostingRegressor if HistogramGradientBoostingRegressor not available
+        from sklearn.ensemble import GradientBoostingRegressor
+        period_model = GradientBoostingRegressor(
+            n_estimators=100,
+            max_depth=8,
+            learning_rate=0.1,
+            random_state=42
+        )
     period_model.fit(X_train_scaled, y_train['next_period'])
     
     period_pred = period_model.predict(X_test_scaled)
@@ -486,15 +495,25 @@ def train_models(X: np.ndarray, y: Dict[str, np.ndarray], user_ids: np.ndarray, 
         # HGB doesn't have feature_importances_ - skip or use permutation_importance
     }
     
-    # 2. Ovulation Prediction (Regression) - Using HistogramGradientBoosting
+    # 2. Ovulation Prediction (Regression) - Using GradientBoosting
     print("\n=== Training Ovulation Prediction (GradientBoosting) ===")
-    ovulation_model = HistogramGradientBoostingRegressor(
-        max_iter=100,
-        max_depth=8,
-        learning_rate=0.1,
-        l2_regularization=0.1,
-        random_state=42
-    )
+    try:
+        ovulation_model = HistogramGradientBoostingRegressor(
+            max_iter=100,
+            max_depth=8,
+            learning_rate=0.1,
+            l2_regularization=0.1,
+            random_state=42
+        )
+    except NameError:
+        # Fallback to GradientBoostingRegressor
+        from sklearn.ensemble import GradientBoostingRegressor
+        ovulation_model = GradientBoostingRegressor(
+            n_estimators=100,
+            max_depth=8,
+            learning_rate=0.1,
+            random_state=42
+        )
     ovulation_model.fit(X_train_scaled, y_train['ovulation'])
     
     ovulation_pred = ovulation_model.predict(X_test_scaled)
